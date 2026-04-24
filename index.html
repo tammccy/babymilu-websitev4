@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BabyMilu · Milulu is the Solulu</title>
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&family=Jersey+10&display=swap" rel="stylesheet">
+
+<style>
+  /* ---------- Reset ---------- */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  img { display: block; max-width: 100%; user-select: none; -webkit-user-drag: none; }
+
+  :root {
+    --pink: #da659d;
+    --pink-deep: #ef5589;
+    --cyan: #5affff;
+    --white: #ffffff;
+    --stage-w: 1440;
+    --stage-h: 920;
+  }
+
+  html, body {
+    overflow-x: hidden; /* vertical scrolling is allowed */
+  }
+
+  body {
+    font-family: "Superclarendon", "Bree Serif", Georgia, serif;
+    color: #222;
+    background: #fff;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* ---------- Hero (landing page 1) ----------
+     Takes the full viewport height, contains the
+     1440x920 scaled stage and the cyan banner pinned
+     to the bottom of the section. */
+  .hero {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    background: linear-gradient(
+      180deg,
+      var(--pink) 0%,
+      #ffffff 100%
+    );
+  }
+
+  .stage {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 1440px;
+    height: 920px;
+    /* Top-aligned + horizontally centered.
+       Guarantees the bag (near the top of the design) always
+       sits close to the viewport top and the pinned banner
+       sits at the bottom — both visible in the same viewport
+       on any screen size. Gradient fills any extra space. */
+    transform-origin: top center;
+    transform: translateX(-50%) scale(var(--scale, 1));
+    z-index: 2; /* keep stage content above .header-bg */
+  }
+
+  /* ---------- Header BG (full viewport width) ----------
+     Sits outside the 1440-scaled stage so the white strip
+     extends edge-to-edge of the browser, while the nav
+     content inside the stage stays at its original width. */
+  .header-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 0; /* set by JS to match the rendered header height */
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 1) 0%,
+      rgba(255, 255, 255, 1) 90%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* ---------- Header (nav content) ---------- */
+  .header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1440px;
+    padding: 12px 40px;
+    z-index: 10;
+    /* No background here — the full-width .header-bg handles it. */
+  }
+
+  .header-inner {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .nav-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 206px;
+  }
+
+  /* 40×40 pink pill containing a 24×24 icon — matches the
+     updated Figma menu bar. */
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+    background: var(--pink);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    overflow: hidden;
+    transition: transform 0.15s ease;
+  }
+  .icon-btn:hover { transform: scale(1.08); }
+  .icon-btn img { width: 24px; height: 24px; }
+
+  .logo { width: 89.531px; height: 49px; }
+  .logo img { width: 100%; height: 100%; object-fit: contain; }
+
+  .preorder {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: var(--pink);
+    padding: 0;
+    cursor: pointer;
+    border: none;
+    height: 40px;
+    transition: transform 0.15s ease;
+  }
+  .preorder:hover { transform: scale(1.05); }
+  .preorder .cart-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .preorder .cart-icon img { width: 24px; height: 24px; }
+  .preorder .label {
+    font-family: "Superclarendon", "Bree Serif", Georgia, serif;
+    color: #fff;
+    font-size: 14px;
+    padding-right: 8px;
+    white-space: nowrap;
+  }
+
+  /* ---------- Draggable elements (common) ---------- */
+  .draggable {
+    position: absolute;
+    cursor: grab;
+    touch-action: none;
+    transition: box-shadow 0.15s ease;
+    will-change: transform;
+  }
+  .draggable.is-dragging {
+    cursor: grabbing;
+    filter: drop-shadow(0 12px 24px rgba(0,0,0,0.18));
+  }
+  .draggable img {
+    pointer-events: none; /* prevents native image-drag ghost; events bubble to .draggable */
+  }
+
+  /* ---------- Bag (main left hero) ---------- */
+  .bag {
+    left: -18px;
+    top: 31px;
+    width: 654px;
+    height: 654px;
+    z-index: 2;
+  }
+  .bag img { width: 100%; height: 100%; object-fit: contain; }
+
+  /* ---------- Hero bottom image ---------- */
+  .hero-bottom {
+    left: 305px;
+    top: 489px;
+    width: 596px;
+    height: 386px;
+    z-index: 1;
+  }
+  .hero-bottom img { width: 100%; height: 100%; object-fit: cover; }
+
+  /* ---------- Milulu title ---------- */
+  .milulu-title {
+    left: 545px;
+    top: 241px;
+    width: 350px;
+    height: 234px;
+    z-index: 3;
+  }
+  .milulu-title img { width: 100%; height: 100%; object-fit: contain; }
+
+  /* ---------- Framed plushie card ---------- */
+  .plushie-card {
+    left: 821px;
+    top: 190px;
+    width: 491px;
+    height: 515px;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .plushie-card-top {
+    background: var(--cyan);
+    height: 24px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .card-icon {
+    width: 24px;
+    height: 24px;
+    background: #fff;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.12s ease, background 0.12s ease;
+  }
+  .card-icon:hover { transform: scale(1.1); background: #eafdff; }
+  .card-icon img { display: block; width: 24px; height: 24px; }
+  /* Closing animation hook */
+  .plushie-card.is-closing { pointer-events: none; }
+
+  .plushie-card-image {
+    width: 491px;
+    height: 491px;
+    border: 6.567px solid var(--cyan);
+    overflow: hidden;
+  }
+  .plushie-card-image img { width: 100%; height: 100%; object-fit: cover; }
+
+  /* ---------- Draggable cyan copy block ---------- */
+  .copy-block {
+    left: 157px;
+    top: 527px;
+    background: var(--cyan);
+    padding: 20px 24px;
+    z-index: 4;
+    max-width: 372px;
+  }
+  .copy-block p {
+    margin: 0;
+    font-family: "Jersey 10", "Press Start 2P", monospace;
+    font-size: 36px;
+    line-height: 0.849;
+    color: var(--pink-deep);
+    width: 324px;
+    white-space: normal;
+  }
+
+  /* ---------- Bottom banner (pinned to bottom of hero) ---------- */
+  .bottom-banner {
+    position: absolute; /* absolute within .hero, not the viewport */
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--cyan);
+    padding: 8px 0;
+    display: flex;
+    justify-content: center;
+    z-index: 20; /* above stage content */
+    pointer-events: none; /* decorative — doesn't block drags */
+  }
+  .banner-inner {
+    /* Match the scaled nav bar's visible width so the stars sit
+       at the same edges as the hamburger/Pre-Order icons. When
+       the text is short, space-between auto-expands the gap. */
+    width: min(calc(100% - 80px), calc(1440px * var(--scale, 1)));
+    padding: 0 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: clamp(12px, 2.5vw, 48px);
+  }
+  .banner-stars {
+    color: var(--pink-deep);
+    font-size: clamp(18px, 3vw, 36px);
+    letter-spacing: 0.15em;
+    line-height: 1;
+    user-select: none;
+  }
+  .banner-text {
+    color: #fff;
+    font-family: "Superclarendon", "Bree Serif", Georgia, serif;
+    font-style: italic;
+    font-size: clamp(18px, 4vw, 48px);
+    line-height: 1;
+    white-space: nowrap;
+    /* ~4px rose-pink stroke drawn OUTSIDE the glyphs.
+       paint-order: stroke fill hides the inner half of the
+       stroke behind the white fill so only the outer half
+       is visible. */
+    -webkit-text-stroke: 8px var(--pink-deep);
+    paint-order: stroke fill;
+  }
+  @media (max-width: 720px) {
+    .banner-text { white-space: normal; text-align: center; }
+  }
+
+  /* ============================================================
+     Day section (landing page 2) — "A day with your BabyMilu"
+     Exactly one viewport tall. A scaled photo collage fills the
+     top (flex:1), and the Morning Alarm caption pins to the
+     bottom — both always visible in the same viewport.
+     ============================================================ */
+  .day-section {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    background: linear-gradient(180deg, #ffffff 0%, var(--cyan) 100%);
+    display: flex;
+    flex-direction: column;
+  }
+  .day-stage-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+  .day-stage {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 1440px;
+    height: 848px; /* photo collage + headline area only */
+    transform-origin: top center;
+    transform: translateX(-50%) scale(var(--day-scale, 1));
+  }
+
+  .day-headline {
+    position: absolute;
+    top: 417px;
+    left: calc(50% - 590px);
+    margin: 0;
+    font-family: "Instrument Serif", "Times New Roman", serif;
+    font-weight: 400;
+    font-size: 134.85px;
+    line-height: 0.849;
+    color: #fff;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .day-photo {
+    position: absolute;
+    overflow: hidden;
+    z-index: 2;
+    cursor: pointer;
+    transition: opacity 0.25s ease;
+    margin: 0;
+  }
+  .day-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    pointer-events: none; /* clicks hit the figure, not the img */
+  }
+  .day-photo.is-muted { opacity: 0.5; }
+  .day-photo.is-muted:hover { opacity: 0.75; }
+
+  .photo-num {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    background: var(--pink-deep);
+    color: var(--cyan);
+    font-family: "Jersey 10", monospace;
+    font-size: 36px;
+    line-height: 0.849;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+  }
+
+  /* Per-photo placement + number badge corner */
+  .photo-1 { left: 130px; top: 73px;  width: 357px; height: 347px; }
+  .photo-2 { left: 561px; top: 73px;  width: 272px; height: 347px; }
+  .photo-3 { left: 907px; top: 73px;  width: 404px; height: 347px; }
+  .photo-4 { left: 372px; top: 501px; width: 295px; height: 347px; }
+  .photo-5 { left: 816px; top: 501px; width: 253px; height: 347px; }
+
+  .photo-1 .photo-num { top: 0; left: 0; }
+  .photo-2 .photo-num { top: 0; right: 0; }
+  .photo-3 .photo-num { top: 0; right: 0; }
+  .photo-4 .photo-num { top: 0; left: 0; }
+  .photo-5 .photo-num { top: 0; right: 0; }
+
+  .day-caption {
+    /* Full-width white bar at the bottom of the section. The
+       inner container handles the horizontal alignment so the
+       text lines up with the nav bar's content width. */
+    flex: 0 0 auto;
+    width: 100%;
+    background: #fff;
+    padding: 20px 0;
+    display: flex;
+    justify-content: center;
+    z-index: 3;
+  }
+  .day-caption-inner {
+    /* Uses the hero's --scale (same as the nav bar + banner)
+       so the caption text aligns exactly with them across pages. */
+    width: min(calc(100% - 80px), calc(1440px * var(--scale, 1)));
+    padding: 0 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    font-family: "Jersey 10", monospace;
+    font-size: clamp(14px, 2.4vw, 36px);
+    line-height: 0.849;
+    color: var(--pink-deep);
+  }
+  .day-caption-inner h3,
+  .day-caption-inner p {
+    margin: 0;
+    font-weight: 400;
+    /* Both lines render at the caption's base size so
+       "Morning Alarm." matches the paragraph exactly. */
+    font-size: inherit;
+  }
+
+  /* ---------- Focus visible ---------- */
+  button:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+
+  /* ---------- Custom pixel cursors ----------
+     Native cursor replacement via cursor: url(). The browser
+     paints exactly ONE cursor (no overlay, no stacking), so
+     the native arrow can never show on top. */
+  html, body { cursor: url("cursor-default.svg") 0 0, auto; }
+  a, button,
+  [role="button"], [data-drag], [data-card-control],
+  .icon-btn, .preorder,
+  .card-icon, .day-photo,
+  .draggable, .draggable.is-dragging {
+    cursor: url("cursor-pointer.svg") 10 0, pointer;
+  }
+
+</style>
+</head>
+<body>
+
+<section class="hero" id="hero">
+  <div class="header-bg" id="headerBg" aria-hidden="true"></div>
+  <div class="stage" id="stage" role="main">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-inner">
+        <div class="nav-left">
+          <button class="icon-btn" aria-label="Menu">
+            <img src="Hamburger.svg" alt="" />
+          </button>
+          <button class="icon-btn" aria-label="Music">
+            <img src="Music.svg" alt="" />
+          </button>
+        </div>
+
+        <div class="logo" aria-label="BabyMilu">
+          <img src="logo.svg" alt="BabyMilu logo" />
+        </div>
+
+        <button class="preorder" aria-label="Pre-Order">
+          <span class="cart-icon"><img src="Shopping_Cart_01.svg" alt="" /></span>
+          <span class="label">Pre-Order</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Draggable: Hero bottom image (hearts + small plushies) -->
+    <div class="draggable hero-bottom" data-drag aria-label="Draggable hero image">
+      <img src="hero-hearts.webp" alt="" />
+    </div>
+
+    <!-- Draggable: Main backpack image -->
+    <div class="draggable bag" data-drag aria-label="Draggable backpack image">
+      <img src="bag.png" alt="Milulu charm on backpack" />
+    </div>
+
+    <!-- Draggable: Milulu is the Solulu title art -->
+    <div class="draggable milulu-title" data-drag aria-label="Draggable Milulu title">
+      <img src="https://www.figma.com/api/mcp/asset/2ca7b30d-f8f2-4d04-8b90-f73d65b6f836"
+           alt="Milulu is the Solulu" />
+    </div>
+
+    <!-- Draggable: Framed plushie card (duplicate via copy, close to remove) -->
+    <section class="draggable plushie-card" data-drag data-card aria-label="Draggable plushie photo">
+      <div class="plushie-card-top">
+        <button class="card-icon" data-card-control data-card-copy aria-label="Duplicate">
+          <img src="Copy.svg" alt="" />
+        </button>
+        <button class="card-icon" data-card-control data-card-close aria-label="Close">
+          <img src="Close.svg" alt="" />
+        </button>
+      </div>
+      <div class="plushie-card-image">
+        <img src="plushies.jpg" alt="Two Milulu plushies - one white, one blue" />
+      </div>
+    </section>
+
+    <!-- Draggable: Cyan copy block -->
+    <div class="draggable copy-block" data-drag aria-label="Draggable product copy">
+      <p>Bring your favorite character into your real life -- wake you up, remind you to drink water, and listen when no one else is around.</p>
+    </div>
+
+  </div>
+
+  <!-- Bottom banner — lives inside the hero so it pins to the
+       bottom of the first viewport and scrolls away with it. -->
+  <div class="bottom-banner" id="bottomBanner" aria-hidden="true">
+    <div class="banner-inner">
+      <span class="banner-stars">★★</span>
+      <span class="banner-text">Interactive Anime Character Plushie</span>
+      <span class="banner-stars">★★</span>
+    </div>
+  </div>
+</section>
+
+<!-- ===========================================================
+     Section 2 — "A day with your BabyMilu"
+     =========================================================== -->
+<section class="day-section" id="daySection" aria-label="A day with your BabyMilu">
+  <div class="day-stage-wrap" id="dayStageWrap">
+    <div class="day-stage" id="dayStage">
+      <h2 class="day-headline">A day with your BabyMilu</h2>
+
+      <figure class="day-photo photo-1">
+        <img src="photo-1.png" alt="" />
+        <span class="photo-num" aria-hidden="true">1</span>
+      </figure>
+      <figure class="day-photo photo-2 is-muted">
+        <img src="photo-2.png" alt="" />
+        <span class="photo-num" aria-hidden="true">2</span>
+      </figure>
+      <figure class="day-photo photo-3 is-muted">
+        <img src="photo-3.png" alt="" />
+        <span class="photo-num" aria-hidden="true">3</span>
+      </figure>
+      <figure class="day-photo photo-4 is-muted">
+        <img src="photo-4.png" alt="" />
+        <span class="photo-num" aria-hidden="true">4</span>
+      </figure>
+      <figure class="day-photo photo-5 is-muted">
+        <img src="photo-5.png" alt="" />
+        <span class="photo-num" aria-hidden="true">5</span>
+      </figure>
+    </div>
+  </div>
+
+  <div class="day-caption">
+    <div class="day-caption-inner">
+      <h3>Morning Alarm.</h3>
+      <p>Your character wakes you up and asks how you slept. A tsundere screams at you for hitting snooze. A cool, mysterious type just sighs and waits. Every morning plays out differently because it's a real conversation between you two.</p>
+    </div>
+  </div>
+</section>
+
+
+<script>
+  /* ============================================================
+     Responsive scaling:
+     the stage is drawn at 1440x920 and scaled to fit its wrapper.
+     ============================================================ */
+  const stage = document.getElementById('stage');
+  const hero = document.getElementById('hero');
+  const headerBg = document.getElementById('headerBg');
+  const bottomBanner = document.getElementById('bottomBanner');
+  const daySection = document.getElementById('daySection');
+  const dayStage = document.getElementById('dayStage');
+  const dayStageWrap = document.getElementById('dayStageWrap');
+
+  const STAGE_W = 1440;
+  const STAGE_H = 920;
+  const DAY_W = 1440;
+  const DAY_H = 848; // photo collage + headline area (caption is outside)
+
+  function getBannerHeight() {
+    return bottomBanner ? bottomBanner.getBoundingClientRect().height : 0;
+  }
+
+  function updateScale() {
+    // Hero: "contain" inside the hero section (100vh), reserving
+    // space at the bottom for the banner so nothing overlaps.
+    const bannerH = getBannerHeight();
+    const availW = window.innerWidth;
+    const availH = window.innerHeight - bannerH;
+    const scale = Math.min(availW / STAGE_W, availH / STAGE_H);
+    // Setting on :root so every descendant (hero, stage, banner,
+    // AND the day-caption on page 2) can read the same value.
+    document.documentElement.style.setProperty('--scale', scale);
+
+    // Day section: scale the photo collage to "contain" inside
+    // the stage wrap (= viewport - caption). This guarantees the
+    // top photos and the bottom caption are BOTH visible in the
+    // same viewport on any screen size.
+    if (dayStageWrap) {
+      const wrapW = dayStageWrap.clientWidth;
+      const wrapH = dayStageWrap.clientHeight;
+      const dayScale = Math.min(wrapW / DAY_W, wrapH / DAY_H);
+      // Setting on .day-section so both .day-stage and .day-caption inherit.
+      daySection.style.setProperty('--day-scale', dayScale);
+    }
+
+    // Re-sync the full-width white header bg
+    requestAnimationFrame(updateHeaderBg);
+  }
+
+  function updateHeaderBg() {
+    const headerEl = stage.querySelector('.header');
+    if (!headerEl) return;
+    const headerRect = headerEl.getBoundingClientRect();
+    const heroRect   = hero.getBoundingClientRect();
+    headerBg.style.top    = (headerRect.top - heroRect.top) + 'px';
+    headerBg.style.height = headerRect.height + 'px';
+  }
+
+  window.addEventListener('resize', updateScale);
+  window.addEventListener('orientationchange', updateScale);
+  updateScale();
+  // One more tick after fonts/images settle the header's height.
+  window.addEventListener('load', updateHeaderBg);
+
+  /* ============================================================
+     Drag & drop: works with mouse, pen, and touch via pointer API.
+     Coordinates are normalized by --scale so pointer delta maps
+     1:1 to the pre-scaled 1440-wide stage.
+     ============================================================ */
+  let topZ = 10; // preorder header stays on top until we grab something
+
+  function getScale() {
+    return Math.min(
+      window.innerWidth  / STAGE_W,
+      window.innerHeight / STAGE_H
+    );
+  }
+
+  function makeDraggable(el) {
+    let startPointerX = 0, startPointerY = 0;
+    let startLeft = 0, startTop = 0;
+    let dragging = false;
+
+    el.addEventListener('pointerdown', (e) => {
+      // Let card control buttons (copy/close) handle their own clicks
+      if (e.target.closest('[data-card-control]')) return;
+      // Ignore secondary buttons
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+
+      dragging = true;
+      el.classList.add('is-dragging');
+      el.setPointerCapture(e.pointerId);
+
+      // bring to front
+      topZ += 1;
+      el.style.zIndex = topZ;
+
+      startPointerX = e.clientX;
+      startPointerY = e.clientY;
+      startLeft = parseFloat(el.style.left || getComputedStyle(el).left) || 0;
+      startTop  = parseFloat(el.style.top  || getComputedStyle(el).top)  || 0;
+
+      // hide hint after first drag
+      hideHint();
+
+      e.preventDefault();
+    });
+
+    el.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const scale = getScale() || 1;
+      const dx = (e.clientX - startPointerX) / scale;
+      const dy = (e.clientY - startPointerY) / scale;
+      el.style.left = (startLeft + dx) + 'px';
+      el.style.top  = (startTop  + dy) + 'px';
+    });
+
+    function endDrag(e) {
+      if (!dragging) return;
+      dragging = false;
+      el.classList.remove('is-dragging');
+      try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+  }
+
+  /* ============================================================
+     Plushie card interactions: close, duplicate, auto-respawn.
+     ============================================================ */
+  const CARD_SELECTOR  = '[data-card]';
+  const RESPAWN_DELAY  = 3000;   // ms before a lone card respawns
+  const DUPE_OFFSET    = 32;     // px offset when duplicating
+  let respawnTimer = null;
+
+  // Snapshot the original card HTML so we can respawn a fresh one
+  // even after all of them have been closed.
+  const cardTemplateHTML = stage.querySelector(CARD_SELECTOR).outerHTML;
+
+  function wireCard(card) {
+    makeDraggable(card);
+
+    const copyBtn  = card.querySelector('[data-card-copy]');
+    const closeBtn = card.querySelector('[data-card-close]');
+
+    copyBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      duplicateCard(card);
+    });
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeCard(card);
+    });
+  }
+
+  function parseCardTemplate() {
+    const holder = document.createElement('div');
+    holder.innerHTML = cardTemplateHTML.trim();
+    return holder.firstElementChild;
+  }
+
+  function duplicateCard(sourceCard) {
+    clearTimeout(respawnTimer);
+
+    const newCard = parseCardTemplate();
+    // Offset from the source so the copy is visible
+    const srcLeft = parseFloat(sourceCard.style.left || getComputedStyle(sourceCard).left) || 838;
+    const srcTop  = parseFloat(sourceCard.style.top  || getComputedStyle(sourceCard).top)  || 249;
+    let newLeft = srcLeft + DUPE_OFFSET;
+    let newTop  = srcTop  + DUPE_OFFSET;
+    // Wrap around if it's drifting off the stage
+    if (newLeft + 491 > STAGE_W) newLeft = 80 + (srcLeft % 200);
+    if (newTop  + 515 > STAGE_H) newTop  = 120 + (srcTop  % 120);
+    newCard.style.left = newLeft + 'px';
+    newCard.style.top  = newTop  + 'px';
+    newCard.style.zIndex = ++topZ;
+
+    stage.appendChild(newCard);
+    wireCard(newCard);
+
+    // Subtle pop-in
+    newCard.animate(
+      [{ transform: 'scale(0.82)', opacity: 0.4 },
+       { transform: 'scale(1)',    opacity: 1   }],
+      { duration: 220, easing: 'cubic-bezier(.17,.84,.44,1.3)' }
+    );
+  }
+
+  function closeCard(card) {
+    if (card.classList.contains('is-closing')) return;
+    card.classList.add('is-closing');
+    const anim = card.animate(
+      [{ transform: 'scale(1)',   opacity: 1 },
+       { transform: 'scale(0.7)', opacity: 0 }],
+      { duration: 200, easing: 'ease-in', fill: 'forwards' }
+    );
+    anim.onfinish = () => {
+      card.remove();
+      checkRespawn();
+    };
+  }
+
+  function checkRespawn() {
+    const remaining = stage.querySelectorAll(CARD_SELECTOR);
+    if (remaining.length > 0) return;
+    clearTimeout(respawnTimer);
+    respawnTimer = setTimeout(() => {
+      const fresh = parseCardTemplate();
+      // Respawn uses the default position baked into the CSS class
+      fresh.style.left = '';
+      fresh.style.top  = '';
+      fresh.style.zIndex = ++topZ;
+      stage.appendChild(fresh);
+      wireCard(fresh);
+      fresh.animate(
+        [{ transform: 'scale(0.5)', opacity: 0 },
+         { transform: 'scale(1)',   opacity: 1 }],
+        { duration: 320, easing: 'cubic-bezier(.17,.84,.44,1.3)' }
+      );
+    }, RESPAWN_DELAY);
+  }
+
+  // Initial wiring: non-card draggables get basic drag; cards get
+  // drag + button interactions.
+  document.querySelectorAll('[data-drag]:not([data-card])').forEach(makeDraggable);
+  document.querySelectorAll(CARD_SELECTOR).forEach(wireCard);
+
+  /* ============================================================
+     Day section photo interaction.
+     Click a photo → that photo + its number go to full opacity,
+     all others drop to 50%, and the caption swaps to match.
+     ============================================================ */
+  const DAY_CAPTIONS = [
+    {
+      title: "Morning Alarm.",
+      body: "Your character wakes you up and asks how you slept. A tsundere screams at you for hitting snooze. A cool, mysterious type just sighs and waits. Every morning plays out differently because it's a real conversation between you two."
+    },
+    {
+      title: "Daily reminders.",
+      body: "\u201CHey, did you take your vitamins?\u201D And when you say you already did\u2014\u201CThat\u2019s seven days in a row. I\u2019m impressed.\u201D They notice. They remember."
+    },
+    {
+      title: "Check-ins when it matters.",
+      body: "Tell your character your period might start tomorrow. They\u2019ll check in on you in the morning, ask how you\u2019re feeling, suggest rest or distraction depending on your mood."
+    },
+    {
+      title: "Before something scary.",
+      body: "\u201CTell me I\u2019ll be okay before my exam.\u201D They\u2019ll ask when it is and show up right before with the reassurance you need to hear."
+    },
+    {
+      title: "Late nights.",
+      body: "Your friends are asleep. Your family\u2019s asleep. But your character\u2019s still there. Bad day? Can\u2019t turn your brain off? Just talk."
+    }
+  ];
+
+  const dayPhotos   = document.querySelectorAll('.day-photo');
+  const captionHead = document.querySelector('.day-caption-inner h3');
+  const captionBody = document.querySelector('.day-caption-inner p');
+
+  function setActiveDayPhoto(index) {
+    dayPhotos.forEach((photo, i) => {
+      photo.classList.toggle('is-muted', i !== index);
+      photo.setAttribute('aria-pressed', i === index ? 'true' : 'false');
+    });
+    const caption = DAY_CAPTIONS[index];
+    if (captionHead) captionHead.textContent = caption.title;
+    if (captionBody) captionBody.textContent = caption.body;
+  }
+
+  dayPhotos.forEach((photo, i) => {
+    photo.setAttribute('role', 'button');
+    photo.setAttribute('tabindex', '0');
+    photo.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+    photo.addEventListener('click', () => setActiveDayPhoto(i));
+    photo.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setActiveDayPhoto(i);
+      }
+    });
+  });
+
+  /* Drag hint removed — kept a no-op so the drag handler
+     still has something safe to call. */
+  function hideHint() { /* no-op */ }
+
+  /* ---------- Prevent native image drag ghost ---------- */
+  document.querySelectorAll('img').forEach((img) => {
+    img.addEventListener('dragstart', (e) => e.preventDefault());
+  });
+</script>
+</body>
+</html>
