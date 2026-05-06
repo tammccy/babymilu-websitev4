@@ -1513,86 +1513,173 @@
     color: #fff;
   }
 
-  /* Mobile: stack columns vertically; abandon the scaled-stage
-     approach in favour of a natural responsive layout. */
+  /* ============================================================
+     Mobile pre-order layout — completely rebuilt to match Figma
+     1890:98. The desktop two-column scaled-stage approach doesn't
+     translate to mobile; instead the mobile layout is a natural
+     vertical scroll: header → headline → socials → Discord button
+     → doll image → Quick Answers (all 5 visible, no fold).
+     ============================================================ */
   @media (max-width: 640px) {
-    .preorder-bg { flex-direction: column; }
-    .preorder-bg-left,
-    .preorder-bg-right { width: 100%; height: 50%; flex: 1 1 50%; }
+    /* Allow vertical scrolling inside the overlay so the user can
+       reach the Quick Answers section by scrolling. The desktop
+       was viewport-fitted; mobile is taller than the viewport. */
+    .preorder-overlay {
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+    /* Hide the desktop's split-half background — on mobile each
+       section paints its own gradient. */
+    .preorder-bg { display: none; }
 
+    /* Stage flows naturally, no transform. Top padding offsets the
+       content past the fixed nav (which covers the top 64px on
+       mobile) so the headline isn't hidden behind it. */
     .preorder-stage {
-      transform: translate(-50%, 0);
+      position: relative;
       top: 0;
+      left: 0;
       width: 100%;
       height: auto;
-      min-height: 100vh;
+      transform: none;
+      min-height: 0;
+      padding-top: 64px;
     }
-    .preorder-header {
-      width: 100%;
-      padding: 12px 20px;
-    }
-    .preorder-header .nav-left { width: 94px; gap: 8px; }
 
+    /* Main content: column-reverse so col-right (headline/socials/
+       Discord) appears ABOVE col-left (doll), matching the Figma
+       order. Cyan→white gradient covers the headline/socials/
+       Discord area. */
     .preorder-main {
       position: relative;
       top: 0;
       width: 100%;
       height: auto;
-      flex-direction: column;
+      display: flex;
+      flex-direction: column-reverse;
     }
-    .preorder-col { flex: 0 0 auto; min-height: 320px; }
-
-    .preorder-product {
-      position: relative;
-      top: 0; left: 0;
-      width: 100%; height: 320px;
-      /* Mobile uses a natural full-width image — undo the desktop
-         clip-path (which would crop the photo on mobile). */
-      clip-path: none;
-    }
-    .preorder-faq {
+    .preorder-col {
+      flex: 0 0 auto;
       width: 100%;
-      left: 0;
-      bottom: 0;
-      transform: none;
+      height: auto;
+      min-height: 0;
+      position: relative;
     }
-    /* Mobile is already full-width — disable the desktop's
-       leftward bleed pseudo so it doesn't hang off the side. */
-    .preorder-faq::before { display: none; }
-    .preorder-faq-header { padding: 10px 16px; }
-    .preorder-faq-label { font-size: 28px; -webkit-text-stroke-width: 3px; }
-    .preorder-faq-chevron { width: 32px; height: 32px; }
-    .preorder-faq-list { padding: 12px 16px; }
-    .preorder-faq-q-text { font-size: 24px; }
-    .preorder-faq-question { height: 44px; }
 
+    /* col-right block: cyan→white gradient backing, vertical stack
+       of headline / socials / Discord with 20px gaps. */
+    .preorder-col-right {
+      background: linear-gradient(180deg, var(--cyan) 0%, #ffffff 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 20px;
+      padding: 20px 0;
+    }
     .preorder-headline {
       position: relative;
-      top: 32px; left: 24px;
-      width: calc(100% - 48px);
-      font-size: clamp(48px, 14vw, 100px);
+      top: 0;
+      left: 0;
+      width: 100%;
+      padding: 0 20px;
+      box-sizing: border-box;
+      font-size: 42px;
+      line-height: 1;
     }
     .preorder-socials {
       position: relative;
-      top: auto;
-      left: 24px;
-      margin-top: 16px;
+      top: 0;
+      left: 0;
+      margin: 0;
+      padding: 0 20px;
+      gap: 0;
     }
-    .preorder-social { width: 56px; height: 56px; }
-    /* img inherits 100%/100% from the desktop rule — no need to
-       override since the SVGs scale with the container. */
+    .preorder-social { width: 44px; height: 44px; }
+
     .preorder-discord {
       position: relative;
-      top: auto;
-      left: 24px;
-      width: calc(100% - 48px);
-      height: 80px;
-      border-radius: 999px;
-      margin-top: 24px;
-      margin-bottom: 24px;
+      top: 0;
+      left: 0;
+      width: calc(100% - 40px);
+      height: 102px;
+      margin: 0 20px;
+      border-radius: 50% / 50%;
+      gap: 6px;
     }
-    .preorder-discord svg { width: 36px; height: 36px; }
+    .preorder-discord svg { width: 44px; height: 44px; }
     .preorder-discord span { font-size: 28px; }
+
+    /* col-left block: pink→white gradient with the doll image
+       centred. The image bleeds slightly past the section's
+       bottom in Figma — recreated here with negative bottom
+       margin (or just letting the section be shorter than the
+       image). Section height is fixed so the doll has a defined
+       frame; image fits via object-fit: contain. */
+    .preorder-col-left {
+      background: linear-gradient(180deg, var(--pink-deep) 0%, #ffffff 100%);
+      height: 360px;
+      overflow: hidden;
+    }
+    .preorder-product {
+      position: relative;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 360px;
+      height: 100%;
+      object-fit: contain;
+      object-position: center;
+    }
+
+    /* Quick Answers panel — flows in document below preorder-stage.
+       No bottom-pinning, no transform, no leftward bleed pseudo.
+       All items + the "See all FAQs" link are visible by default
+       (the desktop nth-child fold rule is overridden). The header
+       is just a label now (not a button) since folding is gone. */
+    .preorder-faq {
+      position: relative;
+      top: 0;
+      left: 0;
+      bottom: auto;
+      width: 100%;
+      transform: none;
+    }
+    .preorder-faq::before { display: none; }
+    /* Override the desktop "hide items 3+ when collapsed" rule.
+       On mobile every FAQ + the See-all link are always visible. */
+    .preorder-faq:not([data-expanded="true"]) .preorder-faq-item:nth-child(n+3) {
+      display: flex;
+    }
+    .preorder-faq:not([data-expanded="true"]) .preorder-faq-all {
+      display: flex;
+    }
+    /* Header chevron is gone on mobile — folding isn't a thing here. */
+    .preorder-faq-chevron { display: none; }
+    .preorder-faq-header {
+      padding: 9px 11px;
+      cursor: default;
+      pointer-events: none; /* not a button anymore */
+    }
+    .preorder-faq-label {
+      font-size: 27px;
+      -webkit-text-stroke-width: 3px;
+    }
+    .preorder-faq-list {
+      padding: 9px 11px;
+      gap: 4px;
+    }
+    .preorder-faq-question { height: 32px; padding-left: 11px; }
+    .preorder-faq-q-text { font-size: 22px; }
+    .preorder-faq-plus { width: 22px; height: 22px; }
+    .preorder-faq-plus svg { width: 14px; height: 14px; }
+    .preorder-faq-answer {
+      font-size: 18px;
+      padding: 2px 11px 8px 11px;
+    }
+    .preorder-faq-all { height: 32px; padding-left: 11px; font-size: 22px; }
+    .preorder-faq-all .preorder-faq-plus svg { width: 14px; height: 14px; }
   }
 
 </style>
