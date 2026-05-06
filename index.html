@@ -4,6 +4,18 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>BabyMilu · Milulu is the Solulu</title>
+<!-- Set <base href="/v4/"> ONLY when served via http(s) (e.g. on
+     Vercel, where this file may be served at the site root and
+     relative paths would otherwise 404). When opened locally as
+     file://, skip it so relative paths resolve from this file's
+     own directory like normal. -->
+<script>
+  if (location.protocol !== 'file:') {
+    var b = document.createElement('base');
+    b.setAttribute('href', '/v4/');
+    document.head.appendChild(b);
+  }
+</script>
 
 <!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -47,9 +59,12 @@
     height: 100vh;
     height: 100dvh;
     overflow: hidden;
+    /* Solid #ef5589 for the top 9.614%, then linear fade to
+       white at the bottom — matches Figma's
+       `bg-gradient-to-b from-[#ef5589] from-[9.614%] to-white`. */
     background: linear-gradient(
       180deg,
-      var(--pink) 0%,
+      var(--pink-deep) 9.614%,
       #ffffff 100%
     );
   }
@@ -70,10 +85,42 @@
     z-index: 2; /* keep stage content above .header-bg */
   }
 
+  /* ---------- Fixed nav (sits above every section + overlay) ----------
+     The nav lives in a viewport-fixed wrapper so it stays pinned to
+     the top across the whole page (hero / day / who / manual / pre-order
+     overlay). The wrapper itself is non-interactive; only its children
+     (the white strip + the scaled nav content) accept pointer events. */
+  .fixed-nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1100; /* above .preorder-overlay (z-index: 1000) */
+    pointer-events: none;
+  }
+  .fixed-nav > * { pointer-events: auto; }
+
+  /* Scaled wrapper that mirrors .stage's centering + scaling so the
+     nav content (1440px design width) lines up identically with the
+     hero's 1440px stage on every viewport size.
+     z-index: 2 — must sit ABOVE the white .header-bg strip
+     (z-index: 1), otherwise the strip covers the icons / logo /
+     Pre-Order text. Mirrors the original .stage (z:2) vs
+     .header-bg (z:1) stacking inside .hero. */
+  .nav-scale-wrap {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 1440px;
+    transform-origin: top center;
+    transform: translateX(-50%) scale(var(--scale, 1));
+    z-index: 2;
+  }
+
   /* ---------- Header BG (full viewport width) ----------
-     Sits outside the 1440-scaled stage so the white strip
-     extends edge-to-edge of the browser, while the nav
-     content inside the stage stays at its original width. */
+     Sits behind the nav so the white strip extends edge-to-edge of
+     the browser, while the nav content inside the scaled wrapper
+     stays at its original 1440-design width. */
   .header-bg {
     position: absolute;
     top: 0;
@@ -120,7 +167,7 @@
   .icon-btn {
     width: 40px;
     height: 40px;
-    background: var(--pink);
+    background: var(--pink-deep);
     border: none;
     cursor: pointer;
     display: flex;
@@ -140,7 +187,7 @@
     display: flex;
     align-items: center;
     gap: 0;
-    background: var(--pink);
+    background: var(--pink-deep);
     padding: 0;
     cursor: pointer;
     border: none;
@@ -163,6 +210,17 @@
     font-size: 14px;
     padding-right: 8px;
     white-space: nowrap;
+  }
+
+  /* Active state: while the pre-order overlay is open the same
+     button flips to cyan bg + pink text/icon (matches the original
+     "active" treatment, but on the single shared nav). */
+  body.preorder-open .preorder { background: var(--cyan); }
+  body.preorder-open .preorder .label { color: var(--pink-deep); }
+  body.preorder-open .preorder .cart-icon img {
+    /* Re-tint the white-stroke cart SVG into pink-deep */
+    filter: brightness(0) saturate(100%) invert(45%) sepia(74%)
+            saturate(2068%) hue-rotate(309deg) brightness(102%) contrast(89%);
   }
 
   /* ---------- Draggable elements (common) ---------- */
@@ -288,11 +346,15 @@
     pointer-events: none; /* decorative — doesn't block drags */
   }
   .banner-inner {
-    /* Match the scaled nav bar's visible width so the stars sit
-       at the same edges as the hamburger/Pre-Order icons. When
-       the text is short, space-between auto-expands the gap. */
-    width: min(calc(100% - 80px), calc(1440px * var(--scale, 1)));
-    padding: 0 40px;
+    /* Match the scaled nav bar's CONTENT width so the stars sit
+       at the same edges as the hamburger/Pre-Order icons. The nav's
+       .header is 1440px (border-box) with 40px horizontal padding,
+       leaving 1360px of content where the icons live — so the
+       banner's stars need to span 1360 * scale, not 1440 * scale.
+       No internal padding here: the stars sit at the banner-inner's
+       own edges (justify-between). */
+    width: min(calc(100% - 80px), calc(1360px * var(--scale, 1)));
+    padding: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -305,6 +367,15 @@
     line-height: 1;
     user-select: none;
   }
+  /* `letter-spacing` adds 0.15em AFTER every character — including
+     the last one — so the right .banner-stars span's content box
+     extends 0.15em past its last star. With justify-between, that
+     trailing space pushes the span's right edge to banner-inner's
+     right, leaving the visible star ~0.15em short of the boundary.
+     Negative margin-right cancels the trailing letter-spacing so
+     the LAST STAR (not the empty trailing space) aligns with
+     banner-inner's right edge — i.e., the Pre-Order button. */
+  .banner-stars:last-child { margin-right: -0.15em; }
   .banner-text {
     color: #fff;
     font-family: "Superclarendon", "Bree Serif", Georgia, serif;
@@ -325,15 +396,13 @@
 
   /* ============================================================
      Day section (landing page 2) — "A day with your BabyMilu"
-     Exactly one viewport tall. A scaled photo collage fills the
-     top (flex:1), and the Morning Alarm caption pins to the
-     bottom — both always visible in the same viewport.
+     Section is a flex column: a stage-wrap with a fixed
+     aspect-ratio for the photo collage, plus an optional
+     caption (mobile only) that takes its natural height below.
      ============================================================ */
   .day-section {
     position: relative;
     width: 100%;
-    height: 100vh;
-    height: 100dvh;
     overflow: hidden;
     background: linear-gradient(180deg, #ffffff 0%, var(--cyan) 100%);
     display: flex;
@@ -341,15 +410,17 @@
   }
   .day-stage-wrap {
     position: relative;
-    flex: 1 1 auto;
-    overflow: hidden;
+    width: 100%;
+    /* Height tracks the scaled stage so the section hugs content. */
+    height: calc(848px * var(--day-scale, 1));
+    flex: 0 0 auto;
   }
   .day-stage {
     position: absolute;
     top: 0;
     left: 50%;
     width: 1440px;
-    height: 848px; /* photo collage + headline area only */
+    height: 848px;
     transform-origin: top center;
     transform: translateX(-50%) scale(var(--day-scale, 1));
   }
@@ -415,65 +486,1141 @@
   .photo-4 .photo-num { top: 0; left: 0; }
   .photo-5 .photo-num { top: 0; right: 0; }
 
-  .day-caption {
-    /* Full-width white bar at the bottom of the section. The
-       inner container handles the horizontal alignment so the
-       text lines up with the nav bar's content width. */
-    flex: 0 0 auto;
-    width: 100%;
+  /* Floating tooltip that follows the cursor over day photos */
+  .day-tooltip {
+    position: fixed;
+    top: 0;
+    left: 0;
     background: #fff;
-    padding: 20px 0;
-    display: flex;
-    justify-content: center;
-    z-index: 3;
-  }
-  .day-caption-inner {
-    /* Uses the hero's --scale (same as the nav bar + banner)
-       so the caption text aligns exactly with them across pages. */
-    width: min(calc(100% - 80px), calc(1440px * var(--scale, 1)));
-    padding: 0 40px;
+    padding: 20px 24px;
     display: flex;
     flex-direction: column;
     gap: 12px;
     font-family: "Jersey 10", monospace;
-    font-size: clamp(14px, 2.4vw, 36px);
+    font-size: clamp(16px, 2vw, 28px);
     line-height: 0.849;
     color: var(--pink-deep);
+    max-width: 440px;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 200;
+    transform: translate(-9999px, -9999px);
+    transition: opacity 0.15s ease;
+    will-change: transform;
   }
-  .day-caption-inner h3,
-  .day-caption-inner p {
+  .day-tooltip.is-visible { opacity: 1; }
+  .day-tooltip h3,
+  .day-tooltip p {
     margin: 0;
     font-weight: 400;
-    /* Both lines render at the caption's base size so
-       "Morning Alarm." matches the paragraph exactly. */
     font-size: inherit;
   }
+  .day-tooltip h3 { white-space: nowrap; }
+
+  /* ============================================================
+     Who section (landing page 3) — "Who lives inside your BabyMilu?"
+     Compact section that hugs its title content. Character heads
+     live OUTSIDE the section's flow (position: fixed) so on hover
+     they cover the entire browser viewport, not just this section.
+     ============================================================ */
+  .who-section {
+    position: relative;
+    width: 100%;
+    /* Height tracks the scaled stage; full-viewport-width
+       gradient bg shows on either side of the centered stage. */
+    height: calc(520px * var(--who-scale, 1));
+    overflow: visible;       /* so heads can spill above/below */
+    background: linear-gradient(180deg, var(--cyan) 0%, #ffffff 100%);
+  }
+  .who-stage {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 1440px;
+    height: 520px;
+    transform-origin: top center;
+    transform: translateX(-50%) scale(var(--who-scale, 1));
+  }
+
+  /* Pink ellipse (background of the title area) */
+  .who-ellipse {
+    position: absolute;
+    top: 150px;
+    left: calc(50% - 637.5px);
+    width: 1275px;
+    height: 213px;
+    border-radius: 50%;
+    background: var(--pink-deep);
+    transition: background 0.35s ease;
+    z-index: 1;
+  }
+
+  /* Character heads — position: fixed so on hover they fill the
+     entire browser viewport, not just this section. The container
+     is INSIDE the section so :has(.who-button:hover) still picks
+     up the hover state. */
+  .who-characters {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+    overflow: hidden;
+  }
+  .who-char {
+    position: absolute;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(.17,.84,.44,1.3);
+  }
+  .who-char img { width: 100%; height: auto; display: block; }
+
+  /* Headline text — always on top so heads can't cover it */
+  .who-headline {
+    position: absolute;
+    top: 150px;
+    left: calc(50% - 637.5px);
+    width: 1275px;
+    height: 213px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 4;
+  }
+  .who-text {
+    position: relative;
+    margin: 0;
+    font-family: "Instrument Serif", "Times New Roman", serif;
+    font-weight: 400;
+    font-size: 96px;
+    line-height: 0.849;
+    white-space: nowrap;
+    transition: opacity 0.35s ease, color 0.35s ease;
+  }
+  .who-text-default { color: var(--cyan); }
+  .who-text-hover {
+    position: absolute;
+    color: var(--pink-deep);
+    opacity: 0;
+  }
+
+  /* Transparent click/hover overlay — captures pointer events
+     for the title-button area without blocking the visual layers. */
+  .who-button {
+    position: absolute;
+    top: 150px;
+    left: calc(50% - 637.5px);
+    width: 1275px;
+    height: 213px;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    z-index: 5;
+  }
+
+  /* === Active state (hover on desktop, tap on mobile) ===
+     Both `:has(.who-button:hover)` and `.who-active` class
+     trigger the same visual result: ellipse turns cyan, headline
+     swaps, and character heads scatter across the viewport. */
+  .who-section:has(.who-button:hover) .who-ellipse,
+  .who-section.who-active .who-ellipse { background: var(--cyan); }
+  .who-section:has(.who-button:hover) .who-text-default,
+  .who-section.who-active .who-text-default { opacity: 0; }
+  .who-section:has(.who-button:hover) .who-text-hover,
+  .who-section.who-active .who-text-hover { opacity: 1; }
+  .who-section:has(.who-button:hover) .who-char,
+  .who-section.who-active .who-char {
+    opacity: 1;
+    transform: scale(1);
+  }
+  /* Per-head transition delays are added inline by JS so the
+     entrance feels naturally staggered. */
+
+  /* ============================================================
+     Manual section (landing page 4) — "How it works"
+     Section hugs content (aspect-ratio 1440/720 ≈ 2:1). The
+     "How it works" title overlaps the user manual card a bit
+     at the top — that's intentional, matches Figma.
+     ============================================================ */
+  .manual-section {
+    position: relative;
+    width: 100%;
+    /* Height tracks the scaled stage so the section width is
+       the full viewport but the stage stays at nav-content width. */
+    height: calc(720px * var(--manual-scale, 1));
+    overflow: hidden;
+    background: linear-gradient(180deg, #ffffff 0%, var(--pink-deep) 100%);
+  }
+  .manual-stage {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 1440px;
+    height: 720px;
+    transform-origin: top center;
+    transform: translateX(-50%) scale(var(--manual-scale, 1));
+  }
+
+  .manual-title {
+    position: absolute;
+    top: 40px;
+    left: calc(50% - 523px);
+    margin: 0;
+    font-family: "Instrument Serif", "Times New Roman", serif;
+    font-weight: 400;
+    font-size: 237.617px;
+    line-height: 0.849;
+    color: var(--cyan);
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .manual-card {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, calc(-50% + 63.5px));
+    background: var(--pink-deep);
+    display: flex;
+    flex-direction: column;
+    width: 862px;
+    z-index: 2;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+  .manual-card.is-closed {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 63.5px)) scale(0.9);
+    pointer-events: none;
+  }
+
+  .manual-topbar {
+    height: 24px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+  }
+  .manual-close {
+    width: 24px;
+    height: 24px;
+    background: #fff;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .manual-close img { width: 24px; height: 24px; display: block; }
+
+  .manual-image-wrap {
+    position: relative;
+    width: 862px;
+    height: 431px;
+    margin: 4px 0;
+    perspective: 2000px;
+    background: var(--pink-deep);
+    overflow: hidden;
+  }
+  /* Two static half-pages (left page + right page), each shows
+     its half of the current spread via background-image cropping. */
+  .manual-half {
+    position: absolute;
+    top: 0;
+    width: 50%;
+    height: 100%;
+    background-color: #fff;
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    background-position-y: center;
+  }
+  .manual-half.left  { left: 0;  background-position-x: 0%;   }
+  .manual-half.right { right: 0; background-position-x: 100%; }
+
+  /* The rotating "page" overlay — only one of the two halves
+     animates per flip. Front face shows the OUTGOING half,
+     back face shows the corresponding INCOMING half. */
+  .manual-flip {
+    position: absolute;
+    top: 0;
+    width: 50%;
+    height: 100%;
+    transform-style: preserve-3d;
+    pointer-events: none;
+    visibility: hidden;
+    z-index: 3;
+  }
+  .manual-flip.flipping-next {
+    right: 0;
+    transform-origin: left center;
+    visibility: visible;
+    animation: manual-flip-next 0.7s ease-in-out forwards;
+  }
+  .manual-flip.flipping-prev {
+    left: 0;
+    transform-origin: right center;
+    visibility: visible;
+    animation: manual-flip-prev 0.7s ease-in-out forwards;
+  }
+  @keyframes manual-flip-next {
+    from { transform: rotateY(0); }
+    to   { transform: rotateY(-180deg); }
+  }
+  @keyframes manual-flip-prev {
+    from { transform: rotateY(0); }
+    to   { transform: rotateY(180deg); }
+  }
+  .flip-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    background-position-y: center;
+    background-color: #fff;
+  }
+  .flip-back { transform: rotateY(180deg); }
+
+  .manual-thumbs {
+    display: flex;
+    gap: 4px;
+    padding: 0 4px 4px;
+    justify-content: center;
+    flex-wrap: nowrap;
+  }
+  .manual-thumb {
+    flex: 0 0 auto;
+    width: 70px;
+    height: 35px;
+    background-color: #fff;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .manual-thumb:hover { transform: translateY(-2px); }
+  /* Current page thumbnail at 50% opacity (matches the day section's
+     "softened" state — same value used as a consistent UI signal) */
+  .manual-thumb.is-current { opacity: 0.5; }
+
+  .manual-arrow {
+    position: absolute;
+    top: calc(50% + 53px);
+    transform: translateY(-50%);
+    width: 120px;
+    height: 165px;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    z-index: 3;
+    transition: transform 0.15s ease;
+  }
+  .manual-arrow:hover { transform: translateY(-50%) scale(1.06); }
+  .manual-arrow svg { width: 100%; height: 100%; display: block; }
+  .manual-prev { left: 40px; }
+  .manual-next { left: 1280px; }
+  .manual-next svg { transform: scaleX(-1); }
 
   /* ---------- Focus visible ---------- */
   button:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
 
-  /* ---------- Custom pixel cursors ----------
-     Native cursor replacement via cursor: url(). The browser
-     paints exactly ONE cursor (no overlay, no stacking), so
-     the native arrow can never show on top. */
-  html, body { cursor: url("cursor-default.svg") 0 0, auto; }
-  a, button,
-  [role="button"], [data-drag], [data-card-control],
-  .icon-btn, .preorder,
-  .card-icon, .day-photo,
-  .draggable, .draggable.is-dragging {
-    cursor: url("cursor-pointer.svg") 10 0, pointer;
+  /* Custom pixel cursors removed — falls back to native system
+     cursors. Interactive elements still get cursor:pointer below
+     via their own component rules. */
+
+  /* ---------- Day-section bottom caption (mobile only) ----------
+     Flex sibling of .day-stage-wrap. Takes its natural height
+     so long paragraphs aren't clipped by a fixed aspect-ratio.
+     Hidden on desktop; shown on mobile via media query. */
+  .day-caption {
+    flex: 0 0 auto;
+    width: 100%;
+    background: #fff;
+    padding: 10px 20px;
+    display: none; /* default hidden — shown via media query below */
+    flex-direction: column;
+    gap: 12px;
+    font-family: "Jersey 10", monospace;
+    font-size: 16px;
+    line-height: 0.849;
+    color: var(--pink-deep);
+    box-sizing: border-box;
+  }
+  .day-caption h3,
+  .day-caption p {
+    margin: 0;
+    font-weight: 400;
+    font-size: inherit;
+  }
+
+  /* ============================================================
+     ============   M O B I L E   L A Y O U T   ================
+     Below 640px, switch every section's design canvas to the
+     iPhone 16/17 Pro mockup (402px wide). Each section's
+     element positions are overridden to match the mobile Figma.
+     ============================================================ */
+  @media (max-width: 640px) {
+
+    /* Disable custom cursor on mobile (touch devices have no cursor) */
+    html, body { cursor: auto; }
+    a, button,
+    [role="button"], [data-drag], [data-card-control],
+    .icon-btn, .preorder, .card-icon, .day-photo,
+    .who-button, .manual-arrow, .manual-thumb, .manual-close,
+    .draggable, .draggable.is-dragging { cursor: pointer; }
+
+    /* ---------- Hero (mobile: 402x874) ---------- */
+    .hero {
+      height: auto;
+      aspect-ratio: 402 / 874;
+    }
+    .stage {
+      width: 402px;
+      height: 874px;
+    }
+    /* Mobile: nav scale wrapper switches to the iPhone design width
+       so the fixed nav matches the rest of the mobile layout. */
+    .nav-scale-wrap { width: 402px; }
+    .header {
+      width: 402px;
+      padding: 12px 20px;
+    }
+    .nav-left {
+      width: 94px;
+      gap: 8px;
+    }
+    /* Pre-Order: no cart icon on mobile, just the text */
+    .preorder { height: 40px; }
+    .preorder .cart-icon { display: none; }
+    .preorder .label { padding: 0 8px; }
+
+    /* Bag */
+    .bag {
+      left: -41px; top: 189px;
+      width: 327px; height: 327px;
+    }
+    /* Hero bottom (product image with hearts) */
+    .hero-bottom {
+      left: 61px; top: 121px;
+      width: 298px; height: 193px;
+    }
+    /* Milulu title */
+    .milulu-title {
+      left: 187px; top: 390px;
+      width: 175px; height: 117px;
+    }
+    /* Plushie card — copy/close icons stay visible but become
+       non-interactive on mobile (so they can't be tapped). */
+    .plushie-card {
+      left: 110px; top: 470px;
+      width: 245.5px;
+      height: 257.5px;
+    }
+    .plushie-card-top {
+      height: 12px;
+      gap: 4px;
+    }
+    .card-icon {
+      width: 12px;
+      height: 12px;
+      pointer-events: none;  /* visible only, not clickable */
+    }
+    .card-icon img { width: 12px; height: 12px; }
+    .plushie-card-image {
+      width: 245.5px;
+      height: 245.5px;
+      border-width: 3.283px;
+    }
+    /* Cyan copy block */
+    .copy-block {
+      left: 70px; top: 652px;
+      padding: 10px 12px;
+      max-width: 186px;
+    }
+    .copy-block p {
+      width: 162px;
+      font-size: 18px;
+    }
+
+    /* Bottom banner (Interactive Anime Character Plushie) */
+    .bottom-banner {
+      padding: 8px 20px;
+    }
+    .banner-inner {
+      width: 100%;
+      max-width: none;
+      padding: 0;
+      gap: 8px;
+    }
+    .banner-text {
+      font-size: 16px;
+      text-align: center;
+      white-space: normal;
+      line-height: 1.05;
+      -webkit-text-stroke-width: 2px;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .banner-stars { font-size: 24px; letter-spacing: 0; flex: 0 0 auto; }
+    /* Each side now shows ONE star instead of two */
+    .banner-stars .star-2 { display: none; }
+
+    /* ---------- Day section (mobile) ----------
+       Stage holds photos + headline (height ~702 design); the
+       caption flows naturally below as a flex sibling. */
+    .day-stage-wrap {
+      height: calc(702px * var(--day-scale, 1));
+    }
+    .day-stage {
+      width: 402px;
+      height: 702px;
+    }
+    /* Photo positions — match Figma mobile */
+    .photo-1 { left:  20px; top:  49px; width: 178.5px; height: 173.5px; }
+    .photo-2 { left: 246px; top:  49px; width: 136px;   height: 173.5px; }
+    .photo-3 { left:  20px; top: 263px; width: 202px;   height: 173.5px; }
+    .photo-4 { left: 234px; top: 263px; width: 147.5px; height: 173.5px; }
+    .photo-5 { left:  20px; top: 465px; width: 126.5px; height: 173.5px; }
+    .photo-num { width: 20px; height: 20px; font-size: 18px; }
+
+    /* Headline sits to the right of photo 5, allowed to wrap */
+    .day-headline {
+      top: 465px;
+      left: calc(50% - 1px);
+      width: 182px;
+      font-size: 53.83px;
+      line-height: 1;
+      white-space: normal;
+    }
+
+    /* Show the bottom caption, hide the floating tooltip */
+    .day-caption { display: flex; }
+    .day-tooltip { display: none; }
+
+    /* ---------- Who section (mobile: 402x127, very compact) ---------- */
+    .who-section {
+      height: calc(127px * var(--who-scale, 1));
+    }
+    .who-stage {
+      width: 402px;
+      height: 127px;
+    }
+    .who-ellipse {
+      top: 33px; left: 20px;
+      width: 362px; height: 60.475px;
+    }
+    .who-headline {
+      top: 33px; left: 20px;
+      width: 362px; height: 60.475px;
+    }
+    .who-text {
+      font-size: 27.256px;
+    }
+    .who-button {
+      top: 33px; left: 20px;
+      width: 362px; height: 60.475px;
+    }
+
+    /* ---------- Manual section (mobile: 402x295) ---------- */
+    .manual-section {
+      height: calc(295px * var(--manual-scale, 1));
+    }
+    .manual-stage {
+      width: 402px;
+      height: 295px;
+    }
+    .manual-title {
+      top: -4.23px;
+      left: calc(50% - 201px);
+      font-size: 91.321px;
+      line-height: 1;
+    }
+    /* Mobile card uses absolute top/left (no centering transform)
+       so its natural height fits inside the 295-tall section. */
+    .manual-card {
+      top: 53px;
+      left: 20px;
+      transform: none;
+      width: 362px;
+    }
+    .manual-card.is-closed {
+      transform: scale(0.9);
+    }
+    .manual-topbar { height: 10.079px; }
+    .manual-close {
+      width: 10.079px;
+      height: 10.079px;
+    }
+    .manual-close img { width: 10.079px; height: 10.079px; }
+    .manual-image-wrap {
+      width: 362px;
+      height: 181px;
+      margin: 1.68px 0;
+      perspective: 1000px;
+    }
+    .manual-thumbs {
+      gap: 1.68px;
+      padding: 0 1.68px 1.68px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    /* Auto-shrink: split available width across all 11 thumbs */
+    .manual-thumb {
+      flex: 1 1 0;
+      min-width: 0;
+      width: auto;
+      height: auto;
+      aspect-ratio: 138 / 69; /* preserve 2:1 page-spread ratio */
+    }
+    /* Big chevron arrows hidden on mobile — use image taps instead */
+    .manual-arrow { display: none; }
+  }
+
+  /* ============================================================
+     Pre-Order overlay — full-screen modal triggered by the
+     Pre-Order button. Structure separates two concerns:
+       1. Background gradients fill the viewport (split 50/50)
+       2. All content lives inside a 1440x1024 design stage that
+          scales like the homepage hero, so margins and elements
+          align with the global nav margin everywhere.
+     ============================================================ */
+  .preorder-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    overflow: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  body.preorder-open .preorder-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  body.preorder-open { overflow: hidden; } /* lock scroll */
+
+  /* --- Background layer: split-column gradients fill the viewport
+         BELOW the nav. Top edge starts at the nav's bottom so the
+         pink/cyan don't bleed up behind the nav (matches Figma). */
+  .preorder-bg {
+    position: absolute;
+    top: calc(64px * var(--preorder-scale, 1));
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    z-index: 0;
+  }
+  .preorder-bg-left,
+  .preorder-bg-right { flex: 1 1 50%; height: 100%; }
+  .preorder-bg-left  { background: linear-gradient(180deg, var(--pink-deep) 0%, #ffffff 100%); }
+  .preorder-bg-right { background: linear-gradient(180deg, var(--cyan)      0%, #ffffff 100%); }
+
+  /* --- White nav background strip — same idea as the homepage's
+         .header-bg: a full-viewport-width white band with a soft
+         fade at the bottom 10%, sitting behind the nav itself. */
+  .preorder-header-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: calc(64px * var(--preorder-scale, 1));
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 1) 0%,
+      rgba(255, 255, 255, 1) 90%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* --- Content stage: 1440x1024 design, anchored at top so the
+        nav is never clipped. Uses --preorder-scale (= heroScale
+        on desktop, so the nav's visual width and side-margins
+        exactly match the homepage nav). --- */
+  .preorder-stage {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 1440px;
+    height: 1024px;
+    transform-origin: top center;
+    transform: translateX(-50%) scale(var(--preorder-scale, 1));
+    z-index: 2;
+  }
+
+  /* --- Header inside the stage — IDENTICAL to homepage nav,
+        only the Pre-Order button is restyled (cyan bg + pink text).
+        NOTE: no `box-sizing: border-box` — the homepage `.header`
+        uses default content-box (1440px content + 80px padding =
+        1520px total). Matching that here keeps the hamburger /
+        music / logo / Pre-Order positions pixel-identical
+        between the two nav bars. */
+  .preorder-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1440px;
+    padding: 12px 40px;
+    z-index: 2;
+  }
+  .preorder-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+  .preorder-header .nav-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    width: 206px;
+  }
+  /* Active Pre-Order: cyan bg, pink text/icon */
+  .preorder-cta {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: var(--cyan);
+    border: 0;
+    padding: 0;
+    height: 40px;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+  .preorder-cta:hover { transform: scale(1.05); }
+  .preorder-cta .cart-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .preorder-cta .cart-icon img {
+    width: 24px;
+    height: 24px;
+    /* Re-tint the white-stroke cart SVG into pink-deep */
+    filter: brightness(0) saturate(100%) invert(45%) sepia(74%)
+            saturate(2068%) hue-rotate(309deg) brightness(102%) contrast(89%);
+  }
+  .preorder-cta .label {
+    font-family: "Superclarendon", "Bree Serif", Georgia, serif;
+    color: var(--pink-deep);
+    font-size: 14px;
+    padding-right: 8px;
+    white-space: nowrap;
+  }
+
+  /* --- Main two-column area below the header --- */
+  .preorder-main {
+    position: absolute;
+    top: 73px;
+    left: 0;
+    width: 1440px;
+    height: 951px;
+    display: flex;
+  }
+  .preorder-col {
+    flex: 1 1 0;
+    min-width: 0;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Product image — smaller doll, centered both horizontally and
+     vertically in the area above the FAQ panel.
+       FAQ panel is 200px tall (see below) anchored to col-left's
+       bottom, so the doll's available space is 951 − 200 = 751px.
+       Doll 500×645 centered in (720, 751) → left:110, top:53. */
+  .preorder-product {
+    position: absolute;
+    top: 53px;
+    left: 110px;
+    width: 500px;
+    height: 645px;
+    object-fit: contain;
+    object-position: center;
+    pointer-events: none;
+  }
+
+  /* col-left runs overflow:visible so the doll's bleed isn't double-
+     clipped (the clip-path above already handles it) and so any
+     decorative bleed in this column can extend past the stage edge. */
+  .preorder-col-left { overflow: visible; }
+
+  /* ---------- Quick Answers panel (viewport-bottom anchored) ----------
+     The panel lives OUTSIDE .preorder-stage (sibling, not child) so
+     its bottom edge is always pinned to the viewport's bottom edge,
+     regardless of how the stage scales. Right edge aligns with the
+     column divider (viewport center). Scaled with --preorder-scale
+     so its visual size still matches the rest of the design.
+
+     Pivot at bottom-right + translateX(-100%) gives:
+       - right edge at viewport center (= col-left's right edge)
+       - bottom edge at viewport bottom
+       - scaling pulls the top/left toward the pivot as the user
+         resizes, so the panel never overflows below the viewport. */
+  .preorder-faq {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    width: 720px;
+    background: linear-gradient(180deg, var(--cyan) 0%, #ffffff 100%);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    z-index: 3; /* above .preorder-stage (z:2), below .fixed-nav (z:1100) */
+    transform-origin: bottom right;
+    transform: translateX(-100%) scale(var(--preorder-scale, 1));
+  }
+  /* Bleed the cyan→white gradient leftward past the stage edge so
+     the panel background fills the entire left half of the viewport
+     (visually continuous with the .preorder-bg-left gradient).
+     The .preorder-overlay's overflow:hidden trims it at the
+     viewport edge. */
+  .preorder-faq::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 100%;
+    width: 5000px;
+    background: linear-gradient(180deg, var(--cyan) 0%, #ffffff 100%);
+    pointer-events: none;
+  }
+  .preorder-faq-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 16px 20px;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+  }
+  .preorder-faq-label {
+    font-family: "Superclarendon", "Bree Serif", Georgia, serif;
+    font-style: italic;
+    font-size: 48px;
+    line-height: 1;
+    color: #fff;
+    -webkit-text-stroke: 6px var(--pink-deep);
+    paint-order: stroke fill;
+  }
+  .preorder-faq-chevron {
+    width: 40px;
+    height: 40px;
+    background: var(--pink-deep);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .preorder-faq-chevron svg {
+    width: 24px;
+    height: 24px;
+    color: #fff;
+    transition: transform 0.2s ease;
+  }
+  /* Default state: chevron points down. Expanded state flips it up. */
+  .preorder-faq[data-expanded="true"] .preorder-faq-chevron svg {
+    transform: rotate(180deg);
+  }
+
+  .preorder-faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px 20px;
+  }
+  .preorder-faq-item {
+    background: var(--pink-deep);
+    display: flex;
+    flex-direction: column;
+  }
+  .preorder-faq-question {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0 0 20px;
+    height: 40px;          /* matches Figma row height exactly */
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    width: 100%;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+  }
+  .preorder-faq-q-text {
+    font-family: "Jersey 10", monospace;
+    font-size: 40px;
+    line-height: 1;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .preorder-faq-plus {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
+  }
+  .preorder-faq-plus svg {
+    width: 24px;
+    height: 24px;
+    transition: transform 0.2s ease;
+  }
+  /* Answer panel — matches Figma: same 40px Jersey 10 white text
+     as the question, sits inside the same pink box, indented 20px
+     from the left so it lines up with the question text above. */
+  .preorder-faq-answer {
+    display: none;
+    padding: 4px 20px 12px 20px;
+    font-family: "Jersey 10", monospace;
+    font-size: 40px;
+    line-height: 1;
+    color: #fff;
+  }
+  .preorder-faq-answer p { margin: 0; }
+  .preorder-faq-answer a { color: #fff; text-decoration: underline; }
+  /* Per-item answer reveal. The header chevron only toggles which
+     QUESTIONS are visible (see rule below), not the answers — those
+     are revealed only by clicking an individual item's + button. */
+  .preorder-faq-item[data-open="true"] .preorder-faq-answer {
+    display: block;
+  }
+  .preorder-faq-item[data-open="true"] .preorder-faq-plus svg {
+    transform: rotate(45deg); /* + becomes × */
+  }
+
+  /* Default state shows only the first 2 FAQ items (the "preview").
+     When the panel is expanded via the header chevron, items 3+
+     become visible (matches the Figma "panel expanded" frame).
+     The "See all FAQs" link is treated the same way — hidden in the
+     preview, revealed when the panel is expanded. */
+  .preorder-faq:not([data-expanded="true"]) .preorder-faq-item:nth-child(n+3),
+  .preorder-faq:not([data-expanded="true"]) .preorder-faq-all {
+    display: none;
+  }
+
+  /* "See all FAQs" link — sits at the bottom of the expanded panel
+     as a navigation entrance to the full FAQ page. No background
+     (sits flat on the cyan→white gradient panel), pink-deep text,
+     chevron-right to signal "navigates away" rather than "expand
+     inline" like the + on a question row. */
+  .preorder-faq-all {
+    background: transparent;
+    border: 2px solid var(--pink-deep);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0 0 20px;
+    height: 40px;
+    box-sizing: border-box;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--pink-deep);
+    font-family: "Jersey 10", monospace;
+    font-size: 40px;
+    line-height: 1;
+    transition: opacity 0.15s ease;
+  }
+  .preorder-faq-all:hover { opacity: 0.75; }
+  .preorder-faq-all .preorder-faq-q-text { white-space: nowrap; color: var(--pink-deep); }
+  .preorder-faq-all .preorder-faq-plus { color: var(--pink-deep); }
+  .preorder-faq-all .preorder-faq-plus svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* --- Right column content (positioned in design coords) ---
+     Layout in 951px-tall column with fair, even-ish vertical
+     spacing between the three elements (headline → socials →
+     Discord), all sized down from the original Figma so the column
+     doesn't feel cramped at any viewport. */
+  .preorder-headline {
+    position: absolute;
+    top: 60px;
+    left: 60px;
+    width: 540px;
+    margin: 0;
+    font-family: "Instrument Serif", "Times New Roman", serif;
+    font-weight: 400;
+    font-size: 80px;
+    line-height: 1;
+    color: var(--pink-deep);
+  }
+  .preorder-col-right { overflow: visible; }
+
+  .preorder-socials {
+    position: absolute;
+    top: 530px;
+    left: 60px;
+    display: flex;
+    gap: 8px;
+  }
+  .preorder-social {
+    width: 64px;
+    height: 64px;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* The social SVGs are 80×80 with the icon already coloured
+     pink-deep and built-in padding around the glyph — render them
+     at full container size so the visual scales with the
+     responsive container. */
+  .preorder-social img { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+  /* Discord ellipse — fills the right panel's textable area
+     horizontally:
+       - left edge (x=60) lines up with .preorder-headline and
+         .preorder-socials.
+       - right edge (x=680) lines up with the Pre-Order button at
+         the top of the page. Globally `box-sizing: border-box` is
+         on, so .header's 1440px width INCLUDES its 40px padding —
+         pre-order's right edge sits at design-x=1400 in nav coords.
+         col-right starts at design-x=720, so the same point is
+         x=680 in col-right local. Width = 680 − 60 = 620. */
+  .preorder-discord {
+    position: absolute;
+    top: 680px;
+    left: 60px;
+    width: 620px;
+    height: 200px;
+    background: var(--pink-deep);
+    border-radius: 50% / 50%;
+    border: 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    transition: transform 0.15s ease;
+  }
+  .preorder-discord:hover { transform: scale(1.03); }
+  .preorder-discord svg { width: 60px; height: 60px; color: #fff; }
+  .preorder-discord span {
+    font-family: "Superclarendon", "Bree Serif", Georgia, serif;
+    font-size: 40px;
+    line-height: 1;
+    color: #fff;
+  }
+
+  /* Mobile: stack columns vertically; abandon the scaled-stage
+     approach in favour of a natural responsive layout. */
+  @media (max-width: 640px) {
+    .preorder-bg { flex-direction: column; }
+    .preorder-bg-left,
+    .preorder-bg-right { width: 100%; height: 50%; flex: 1 1 50%; }
+
+    .preorder-stage {
+      transform: translate(-50%, 0);
+      top: 0;
+      width: 100%;
+      height: auto;
+      min-height: 100vh;
+    }
+    .preorder-header {
+      width: 100%;
+      padding: 12px 20px;
+    }
+    .preorder-header .nav-left { width: 94px; gap: 8px; }
+
+    .preorder-main {
+      position: relative;
+      top: 0;
+      width: 100%;
+      height: auto;
+      flex-direction: column;
+    }
+    .preorder-col { flex: 0 0 auto; min-height: 320px; }
+
+    .preorder-product {
+      position: relative;
+      top: 0; left: 0;
+      width: 100%; height: 320px;
+      /* Mobile uses a natural full-width image — undo the desktop
+         clip-path (which would crop the photo on mobile). */
+      clip-path: none;
+    }
+    .preorder-faq {
+      width: 100%;
+      left: 0;
+      bottom: 0;
+      transform: none;
+    }
+    /* Mobile is already full-width — disable the desktop's
+       leftward bleed pseudo so it doesn't hang off the side. */
+    .preorder-faq::before { display: none; }
+    .preorder-faq-header { padding: 10px 16px; }
+    .preorder-faq-label { font-size: 28px; -webkit-text-stroke-width: 3px; }
+    .preorder-faq-chevron { width: 32px; height: 32px; }
+    .preorder-faq-list { padding: 12px 16px; }
+    .preorder-faq-q-text { font-size: 24px; }
+    .preorder-faq-question { height: 44px; }
+
+    .preorder-headline {
+      position: relative;
+      top: 32px; left: 24px;
+      width: calc(100% - 48px);
+      font-size: clamp(48px, 14vw, 100px);
+    }
+    .preorder-socials {
+      position: relative;
+      top: auto;
+      left: 24px;
+      margin-top: 16px;
+    }
+    .preorder-social { width: 56px; height: 56px; }
+    /* img inherits 100%/100% from the desktop rule — no need to
+       override since the SVGs scale with the container. */
+    .preorder-discord {
+      position: relative;
+      top: auto;
+      left: 24px;
+      width: calc(100% - 48px);
+      height: 80px;
+      border-radius: 999px;
+      margin-top: 24px;
+      margin-bottom: 24px;
+    }
+    .preorder-discord svg { width: 36px; height: 36px; }
+    .preorder-discord span { font-size: 28px; }
   }
 
 </style>
 </head>
 <body>
 
-<section class="hero" id="hero">
+<!-- ===========================================================
+     Global fixed nav — pinned to the top of the viewport across
+     every section AND the pre-order overlay. The Pre-Order button
+     toggles the overlay open/closed; while it's open the same
+     button flips to the cyan "active" treatment via CSS.
+     =========================================================== -->
+<div class="fixed-nav" id="fixedNav">
   <div class="header-bg" id="headerBg" aria-hidden="true"></div>
-  <div class="stage" id="stage" role="main">
-
-    <!-- Header -->
+  <div class="nav-scale-wrap">
     <header class="header">
       <div class="header-inner">
         <div class="nav-left">
@@ -489,12 +1636,17 @@
           <img src="logo.svg" alt="BabyMilu logo" />
         </div>
 
-        <button class="preorder" aria-label="Pre-Order">
+        <button class="preorder" id="preorderBtn" aria-label="Pre-Order" aria-expanded="false">
           <span class="cart-icon"><img src="Shopping_Cart_01.svg" alt="" /></span>
           <span class="label">Pre-Order</span>
         </button>
       </div>
     </header>
+  </div>
+</div>
+
+<section class="hero" id="hero">
+  <div class="stage" id="stage" role="main">
 
     <!-- Draggable: Hero bottom image (hearts + small plushies) -->
     <div class="draggable hero-bottom" data-drag aria-label="Draggable hero image">
@@ -508,8 +1660,7 @@
 
     <!-- Draggable: Milulu is the Solulu title art -->
     <div class="draggable milulu-title" data-drag aria-label="Draggable Milulu title">
-      <img src="https://www.figma.com/api/mcp/asset/2ca7b30d-f8f2-4d04-8b90-f73d65b6f836"
-           alt="Milulu is the Solulu" />
+      <img src="milulu-title.png" alt="Milulu is the Solulu" />
     </div>
 
     <!-- Draggable: Framed plushie card (duplicate via copy, close to remove) -->
@@ -538,9 +1689,9 @@
        bottom of the first viewport and scrolls away with it. -->
   <div class="bottom-banner" id="bottomBanner" aria-hidden="true">
     <div class="banner-inner">
-      <span class="banner-stars">★★</span>
+      <span class="banner-stars"><span class="star-1">★</span><span class="star-2">★</span></span>
       <span class="banner-text">Interactive Anime Character Plushie</span>
-      <span class="banner-stars">★★</span>
+      <span class="banner-stars"><span class="star-1">★</span><span class="star-2">★</span></span>
     </div>
   </div>
 </section>
@@ -550,7 +1701,7 @@
      =========================================================== -->
 <section class="day-section" id="daySection" aria-label="A day with your BabyMilu">
   <div class="day-stage-wrap" id="dayStageWrap">
-    <div class="day-stage" id="dayStage">
+  <div class="day-stage" id="dayStage">
       <h2 class="day-headline">A day with your BabyMilu</h2>
 
       <figure class="day-photo photo-1">
@@ -573,16 +1724,141 @@
         <img src="photo-5.png" alt="" />
         <span class="photo-num" aria-hidden="true">5</span>
       </figure>
-    </div>
+
+  </div>
   </div>
 
-  <div class="day-caption">
-    <div class="day-caption-inner">
-      <h3>Morning Alarm.</h3>
-      <p>Your character wakes you up and asks how you slept. A tsundere screams at you for hitting snooze. A cool, mysterious type just sighs and waits. Every morning plays out differently because it's a real conversation between you two.</p>
-    </div>
+  <!-- Bottom caption — only shown on mobile via media query.
+       A flex sibling so its natural height isn't clipped by
+       the day-stage's fixed aspect ratio. -->
+  <div class="day-caption" id="dayCaption">
+    <h3 id="dayCaptionTitle">Morning Alarm.</h3>
+    <p id="dayCaptionBody">Your character wakes you up and asks how you slept. A tsundere screams at you for hitting snooze. A cool, mysterious type just sighs and waits. Every morning plays out differently because it's a real conversation between you two.</p>
   </div>
 </section>
+
+<!-- ===========================================================
+     Section 3 — "Who lives inside your BabyMilu?"
+     =========================================================== -->
+<section class="who-section" id="whoSection" aria-label="Who lives inside your BabyMilu">
+
+  <!-- Character heads layer — direct child of the section so it
+       can fill the FULL viewport (not just the scaled stage). -->
+  <div class="who-characters" id="whoCharacters" aria-hidden="true"></div>
+
+  <div class="who-stage" id="whoStage">
+    <!-- Visual layers: ellipse (back) + headline (always on top of heads) -->
+    <div class="who-ellipse" aria-hidden="true"></div>
+
+    <div class="who-headline" aria-hidden="true">
+      <span class="who-text who-text-default">Who lives inside your BabyMilu?</span>
+      <span class="who-text who-text-hover">Anyone you want.</span>
+    </div>
+
+    <!-- Transparent overlay over the ellipse area —
+         the click target / hover trigger. -->
+    <button class="who-button" type="button" aria-label="Who lives inside your BabyMilu?"></button>
+  </div>
+</section>
+
+<!-- ===========================================================
+     Section 4 — "How it works" (user manual carousel)
+     =========================================================== -->
+<section class="manual-section" id="manualSection" aria-label="How it works user manual">
+  <div class="manual-stage" id="manualStage">
+
+    <h2 class="manual-title">How it works</h2>
+
+    <div class="manual-card" id="manualCard">
+      <div class="manual-topbar">
+        <button class="manual-close" id="manualClose" type="button" aria-label="Close">
+          <img src="Close.svg" alt="" />
+        </button>
+      </div>
+      <div class="manual-image-wrap">
+        <!-- Two static half-page slots (left page + right page) -->
+        <div class="manual-half left"  id="manualLeft"  aria-hidden="true"></div>
+        <div class="manual-half right" id="manualRight" aria-hidden="true"></div>
+        <!-- Rotating overlay: only one half flips per page change.
+             Front face = outgoing half; back face = incoming half. -->
+        <div class="manual-flip" id="manualFlip" aria-hidden="true">
+          <div class="flip-face flip-front" id="manualFlipFront"></div>
+          <div class="flip-face flip-back"  id="manualFlipBack"></div>
+        </div>
+      </div>
+      <div class="manual-thumbs" id="manualThumbs"></div>
+    </div>
+
+    <button class="manual-arrow manual-prev" id="manualPrev" type="button" aria-label="Previous page">
+      <svg viewBox="0 0 120 165" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+        <g fill="white">
+          <rect x="75"  y="0"   width="15" height="15"/>
+          <rect x="60"  y="15"  width="15" height="15"/>
+          <rect x="45"  y="30"  width="15" height="15"/>
+          <rect x="30"  y="45"  width="15" height="15"/>
+          <rect x="15"  y="60"  width="15" height="15"/>
+          <rect x="0"   y="75"  width="15" height="15"/>
+          <rect x="15"  y="90"  width="15" height="15"/>
+          <rect x="30"  y="105" width="15" height="15"/>
+          <rect x="45"  y="120" width="15" height="15"/>
+          <rect x="60"  y="135" width="15" height="15"/>
+          <rect x="75"  y="150" width="15" height="15"/>
+          <rect x="90"  y="150" width="15" height="15"/>
+          <rect x="105" y="150" width="15" height="15"/>
+          <rect x="105" y="135" width="15" height="15"/>
+          <rect x="90"  y="120" width="15" height="15"/>
+          <rect x="75"  y="105" width="15" height="15"/>
+          <rect x="60"  y="90"  width="15" height="15"/>
+          <rect x="45"  y="75"  width="15" height="15"/>
+          <rect x="60"  y="60"  width="15" height="15"/>
+          <rect x="75"  y="45"  width="15" height="15"/>
+          <rect x="90"  y="30"  width="15" height="15"/>
+          <rect x="90"  y="0"   width="15" height="15"/>
+          <rect x="105" y="0"   width="15" height="15"/>
+          <rect x="105" y="15"  width="15" height="15"/>
+        </g>
+      </svg>
+    </button>
+
+    <button class="manual-arrow manual-next" id="manualNext" type="button" aria-label="Next page">
+      <svg viewBox="0 0 120 165" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+        <g fill="white">
+          <rect x="75"  y="0"   width="15" height="15"/>
+          <rect x="60"  y="15"  width="15" height="15"/>
+          <rect x="45"  y="30"  width="15" height="15"/>
+          <rect x="30"  y="45"  width="15" height="15"/>
+          <rect x="15"  y="60"  width="15" height="15"/>
+          <rect x="0"   y="75"  width="15" height="15"/>
+          <rect x="15"  y="90"  width="15" height="15"/>
+          <rect x="30"  y="105" width="15" height="15"/>
+          <rect x="45"  y="120" width="15" height="15"/>
+          <rect x="60"  y="135" width="15" height="15"/>
+          <rect x="75"  y="150" width="15" height="15"/>
+          <rect x="90"  y="150" width="15" height="15"/>
+          <rect x="105" y="150" width="15" height="15"/>
+          <rect x="105" y="135" width="15" height="15"/>
+          <rect x="90"  y="120" width="15" height="15"/>
+          <rect x="75"  y="105" width="15" height="15"/>
+          <rect x="60"  y="90"  width="15" height="15"/>
+          <rect x="45"  y="75"  width="15" height="15"/>
+          <rect x="60"  y="60"  width="15" height="15"/>
+          <rect x="75"  y="45"  width="15" height="15"/>
+          <rect x="90"  y="30"  width="15" height="15"/>
+          <rect x="90"  y="0"   width="15" height="15"/>
+          <rect x="105" y="0"   width="15" height="15"/>
+          <rect x="105" y="15"  width="15" height="15"/>
+        </g>
+      </svg>
+    </button>
+
+  </div>
+</section>
+
+<!-- Floating tooltip — follows the cursor when hovering a day photo -->
+<div class="day-tooltip" id="dayTooltip" role="tooltip" aria-hidden="true">
+  <h3></h3>
+  <p></p>
+</div>
 
 
 <script>
@@ -596,50 +1872,96 @@
   const bottomBanner = document.getElementById('bottomBanner');
   const daySection = document.getElementById('daySection');
   const dayStage = document.getElementById('dayStage');
-  const dayStageWrap = document.getElementById('dayStageWrap');
+  const whoSection = document.getElementById('whoSection');
+  const whoStage   = document.getElementById('whoStage');
+  const manualSection = document.getElementById('manualSection');
+  const manualStage   = document.getElementById('manualStage');
 
-  const STAGE_W = 1440;
-  const STAGE_H = 920;
-  const DAY_W = 1440;
-  const DAY_H = 848; // photo collage + headline area (caption is outside)
+  /* Design canvases — switch to mobile dimensions below 640px viewport.
+     Numbers come from the Figma desktop / iPhone-Pro mocks. */
+  const MOBILE_BREAK = 640;
+  const DESIGN = {
+    stage:  { w: 1440, h: 920,  mw: 402, mh: 874 },
+    day:    { w: 1440, h: 848,  mw: 402, mh: 702 },
+    who:    { w: 1440, h: 520,  mw: 402, mh: 127 },
+    manual: { w: 1440, h: 720,  mw: 402, mh: 295 },
+  };
+  function isMobileViewport() {
+    return window.innerWidth <= MOBILE_BREAK;
+  }
+  function dims(name) {
+    const d = DESIGN[name];
+    return isMobileViewport() ? { w: d.mw, h: d.mh } : { w: d.w, h: d.h };
+  }
+  // Backwards-compat aliases — used elsewhere in the script
+  let STAGE_W = DESIGN.stage.w, STAGE_H = DESIGN.stage.h;
+  let DAY_W   = DESIGN.day.w,   DAY_H   = DESIGN.day.h;
+  let WHO_W   = DESIGN.who.w,   WHO_H   = DESIGN.who.h;
+  let MANUAL_W= DESIGN.manual.w, MANUAL_H = DESIGN.manual.h;
 
   function getBannerHeight() {
     return bottomBanner ? bottomBanner.getBoundingClientRect().height : 0;
   }
 
   function updateScale() {
-    // Hero: "contain" inside the hero section (100vh), reserving
-    // space at the bottom for the banner so nothing overlaps.
+    // Hero: "contain" inside the viewport — height-limited on most
+    // landscape screens, which is what defines the visual width
+    // of the nav bar (the reference width all other sections
+    // should respect).
+    const heroD = dims('stage');
+    STAGE_W = heroD.w; STAGE_H = heroD.h;
     const bannerH = getBannerHeight();
     const availW = window.innerWidth;
     const availH = window.innerHeight - bannerH;
-    const scale = Math.min(availW / STAGE_W, availH / STAGE_H);
-    // Setting on :root so every descendant (hero, stage, banner,
-    // AND the day-caption on page 2) can read the same value.
-    document.documentElement.style.setProperty('--scale', scale);
+    const heroScale = Math.min(availW / STAGE_W, availH / STAGE_H);
+    document.documentElement.style.setProperty('--scale', heroScale);
 
-    // Day section: scale the photo collage to "contain" inside
-    // the stage wrap (= viewport - caption). This guarantees the
-    // top photos and the bottom caption are BOTH visible in the
-    // same viewport on any screen size.
-    if (dayStageWrap) {
-      const wrapW = dayStageWrap.clientWidth;
-      const wrapH = dayStageWrap.clientHeight;
-      const dayScale = Math.min(wrapW / DAY_W, wrapH / DAY_H);
-      // Setting on .day-section so both .day-stage and .day-caption inherit.
+    // On desktop we cap every other section's scale at heroScale so
+    // their content never gets visually wider than the nav bar.
+    // On mobile we don't cap (the layout is already viewport-fit).
+    const cap = isMobileViewport() ? Infinity : heroScale;
+
+    if (daySection) {
+      const dayD = dims('day');
+      DAY_W = dayD.w; DAY_H = dayD.h;
+      const dayScale = Math.min(availW / DAY_W, cap);
       daySection.style.setProperty('--day-scale', dayScale);
     }
+    if (whoSection && whoStage) {
+      const whoD = dims('who');
+      WHO_W = whoD.w; WHO_H = whoD.h;
+      const whoScale = Math.min(availW / WHO_W, cap);
+      whoSection.style.setProperty('--who-scale', whoScale);
+    }
+    if (manualSection && manualStage) {
+      const manualD = dims('manual');
+      MANUAL_W = manualD.w; MANUAL_H = manualD.h;
+      const manualScale = Math.min(availW / MANUAL_W, cap);
+      manualSection.style.setProperty('--manual-scale', manualScale);
+    }
 
-    // Re-sync the full-width white header bg
+    // Pre-Order overlay: use naturalPre (the scale that fits the
+    // 1440×1024 pre-order design inside the viewport on BOTH axes).
+    // Earlier this used heroScale, but heroScale fits a 920-tall
+    // hero design — applied to the 1024-tall pre-order it overflows
+    // the bottom of the viewport (the FAQ panel was getting cropped).
+    const preorderStageEl = document.getElementById('preorderStage');
+    if (preorderStageEl) {
+      const PRE_W = 1440, PRE_H = 1024;
+      const preScale = Math.min(availW / PRE_W, window.innerHeight / PRE_H);
+      document.documentElement.style.setProperty('--preorder-scale', preScale);
+    }
+
     requestAnimationFrame(updateHeaderBg);
   }
 
   function updateHeaderBg() {
-    const headerEl = stage.querySelector('.header');
-    if (!headerEl) return;
+    // The nav now lives in the viewport-fixed .fixed-nav wrapper, so
+    // its top is always 0 (set in CSS) — we just sync the height of
+    // the white strip to the rendered (post-scale) header height.
+    const headerEl = document.querySelector('.fixed-nav .header');
+    if (!headerEl || !headerBg) return;
     const headerRect = headerEl.getBoundingClientRect();
-    const heroRect   = hero.getBoundingClientRect();
-    headerBg.style.top    = (headerRect.top - heroRect.top) + 'px';
     headerBg.style.height = headerRect.height + 'px';
   }
 
@@ -841,32 +2163,332 @@
     }
   ];
 
-  const dayPhotos   = document.querySelectorAll('.day-photo');
-  const captionHead = document.querySelector('.day-caption-inner h3');
-  const captionBody = document.querySelector('.day-caption-inner p');
+  const dayPhotos    = document.querySelectorAll('.day-photo');
+  const dayTooltip   = document.getElementById('dayTooltip');
+  const tooltipTitle = dayTooltip.querySelector('h3');
+  const tooltipBody  = dayTooltip.querySelector('p');
+  // Mobile-only bottom caption inside the day-stage
+  const dayCaptionTitle = document.getElementById('dayCaptionTitle');
+  const dayCaptionBody  = document.getElementById('dayCaptionBody');
 
   function setActiveDayPhoto(index) {
     dayPhotos.forEach((photo, i) => {
       photo.classList.toggle('is-muted', i !== index);
       photo.setAttribute('aria-pressed', i === index ? 'true' : 'false');
     });
-    const caption = DAY_CAPTIONS[index];
-    if (captionHead) captionHead.textContent = caption.title;
-    if (captionBody) captionBody.textContent = caption.body;
+    // Keep the mobile bottom caption in sync (no-op on desktop where it's hidden)
+    if (dayCaptionTitle && dayCaptionBody && DAY_CAPTIONS[index]) {
+      dayCaptionTitle.textContent = DAY_CAPTIONS[index].title;
+      dayCaptionBody.textContent  = DAY_CAPTIONS[index].body;
+    }
+  }
+
+  /* ---------- Tooltip show / hide / cursor-follow ---------- */
+  let tipX = 0, tipY = 0;
+  let tipFrame = null;
+  const TIP_OFFSET = 20;
+  const TIP_EDGE_PAD = 12;
+
+  function applyTipPosition() {
+    tipFrame = null;
+    const w = dayTooltip.offsetWidth;
+    const h = dayTooltip.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // Default: bottom-right of cursor; flip if it would clip
+    let x = tipX + TIP_OFFSET;
+    let y = tipY + TIP_OFFSET;
+    if (x + w > vw - TIP_EDGE_PAD) x = tipX - w - TIP_OFFSET;
+    if (y + h > vh - TIP_EDGE_PAD) y = tipY - h - TIP_OFFSET;
+    if (x < TIP_EDGE_PAD) x = TIP_EDGE_PAD;
+    if (y < TIP_EDGE_PAD) y = TIP_EDGE_PAD;
+    dayTooltip.style.transform = `translate(${x}px, ${y}px)`;
+  }
+  function moveTip(e) {
+    tipX = e.clientX;
+    tipY = e.clientY;
+    if (!tipFrame) tipFrame = requestAnimationFrame(applyTipPosition);
+  }
+  function showTip(index, e) {
+    tooltipTitle.textContent = DAY_CAPTIONS[index].title;
+    tooltipBody.textContent  = DAY_CAPTIONS[index].body;
+    tipX = e.clientX;
+    tipY = e.clientY;
+    applyTipPosition();
+    dayTooltip.classList.add('is-visible');
+    dayTooltip.setAttribute('aria-hidden', 'false');
+  }
+  function hideTip() {
+    dayTooltip.classList.remove('is-visible');
+    dayTooltip.setAttribute('aria-hidden', 'true');
   }
 
   dayPhotos.forEach((photo, i) => {
     photo.setAttribute('role', 'button');
     photo.setAttribute('tabindex', '0');
     photo.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
-    photo.addEventListener('click', () => setActiveDayPhoto(i));
     photo.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         setActiveDayPhoto(i);
       }
     });
+
+    // Click / tap → set active (mobile bottom-caption uses this)
+    photo.addEventListener('click', () => setActiveDayPhoto(i));
+
+    // Hover: photo goes 100% opacity, others fade to 50%, and
+    // the floating story tooltip pops in next to the cursor.
+    photo.addEventListener('mouseenter', (e) => {
+      setActiveDayPhoto(i);
+      showTip(i, e);
+    });
+    photo.addEventListener('mousemove', moveTip);
+    photo.addEventListener('mouseleave', hideTip);
   });
+
+  /* ============================================================
+     Who section: scatter random character heads across the FULL
+     viewport (the .who-characters container is a direct child of
+     the section, not of the scaled stage). They appear with random
+     stagger when the title button is hovered.
+     ============================================================ */
+  const HEAD_IMAGES = [
+    'starry_f01.png',
+    'laugh_f04.png',
+    'smirk_start_f06.png',
+    'normal-5 (dragged).png',
+    'heart_start_f01.png'
+  ];
+
+  function scatterWhoHeads() {
+    const container = document.getElementById('whoCharacters');
+    if (!container) return;
+    container.innerHTML = '';
+
+    // Use the full viewport — the .who-characters container is
+    // position: fixed, so heads fill the entire browser window.
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+
+    // Roughly 1 head per 28k px² of viewport, capped 18-40
+    const COUNT = Math.min(40, Math.max(18, Math.round((W * H) / 28000)));
+    // Sizes scale with viewport so heads feel proportional
+    const SIZE_MIN = Math.round(Math.min(W, H) * 0.10);
+    const SIZE_MAX = Math.round(Math.min(W, H) * 0.20);
+
+    const placed = [];
+    for (let i = 0; i < COUNT; i++) {
+      let x = 0, y = 0, size = 0, ok = false, attempts = 0;
+      while (!ok && attempts < 60) {
+        size = SIZE_MIN + Math.random() * (SIZE_MAX - SIZE_MIN);
+        // Allow slight overflow past the viewport edges
+        x = -size * 0.3 + Math.random() * (W + size * 0.6 - size);
+        y = -size * 0.2 + Math.random() * (H + size * 0.4 - size);
+        ok = placed.every(p => {
+          const dx = (x + size / 2) - (p.x + p.size / 2);
+          const dy = (y + size / 2) - (p.y + p.size / 2);
+          return Math.hypot(dx, dy) > (size + p.size) * 0.40;
+        });
+        attempts++;
+      }
+      placed.push({ x, y, size });
+
+      const head = document.createElement('div');
+      head.className = 'who-char';
+      head.style.left  = x + 'px';
+      head.style.top   = y + 'px';
+      head.style.width = size + 'px';
+      head.style.transitionDelay = (Math.random() * 0.55).toFixed(2) + 's';
+
+      const img = document.createElement('img');
+      img.src = HEAD_IMAGES[Math.floor(Math.random() * HEAD_IMAGES.length)];
+      img.alt = '';
+      img.draggable = false;
+      head.appendChild(img);
+      container.appendChild(head);
+    }
+  }
+  scatterWhoHeads();
+  // Re-scatter on resize so heads always cover the visible area
+  let _scatterRAF = null;
+  window.addEventListener('resize', () => {
+    if (_scatterRAF) return;
+    _scatterRAF = requestAnimationFrame(() => {
+      _scatterRAF = null;
+      scatterWhoHeads();
+    });
+  });
+
+  /* ============================================================
+     Manual section carousel: 11 spreads, arrow + thumbnail nav.
+     Half-page flip: only one half of the spread rotates around
+     the spine, like turning a real page in a book.
+     ============================================================ */
+  const MANUAL_PAGE_COUNT = 11;
+  const MANUAL_FLIP_MS    = 700; // total animation duration
+  const manualThumbs   = document.getElementById('manualThumbs');
+  const manualPrev     = document.getElementById('manualPrev');
+  const manualNext     = document.getElementById('manualNext');
+  const manualClose    = document.getElementById('manualClose');
+  const manualCard     = document.getElementById('manualCard');
+  const manualLeft     = document.getElementById('manualLeft');
+  const manualRight    = document.getElementById('manualRight');
+  const manualFlip     = document.getElementById('manualFlip');
+  const manualFlipFront= document.getElementById('manualFlipFront');
+  const manualFlipBack = document.getElementById('manualFlipBack');
+  let   manualPage     = 0;     // 0-indexed (0 = page 1)
+  let   manualBusy     = false;
+
+  function manualUrl(n) { return 'url("manual/' + n + '.png")'; }
+
+  // Preload all spreads so flip swaps don't flash
+  const _manualPreload = [];
+  for (let i = 1; i <= MANUAL_PAGE_COUNT; i++) {
+    const im = new Image();
+    im.src = 'manual/' + i + '.png';
+    _manualPreload.push(im);
+  }
+
+  function setManualHalves(pageNum) {
+    const u = manualUrl(pageNum);
+    manualLeft.style.backgroundImage  = u;
+    manualRight.style.backgroundImage = u;
+  }
+
+  function buildManualThumbs() {
+    if (!manualThumbs) return;
+    manualThumbs.innerHTML = '';
+    for (let i = 0; i < MANUAL_PAGE_COUNT; i++) {
+      const t = document.createElement('button');
+      t.type = 'button';
+      t.className = 'manual-thumb';
+      t.setAttribute('aria-label', 'Go to page ' + (i + 1));
+      t.style.backgroundImage = manualUrl(i + 1);
+      t.addEventListener('click', () => goToManualPage(i));
+      manualThumbs.appendChild(t);
+    }
+    paintActiveThumb();
+  }
+
+  function paintActiveThumb() {
+    if (!manualThumbs) return;
+    manualThumbs.querySelectorAll('.manual-thumb').forEach((t, i) => {
+      t.classList.toggle('is-current', i === manualPage);
+    });
+  }
+
+  function updateArrowVisibility() {
+    // Hide left arrow on the first page, right arrow on the last
+    if (manualPrev) {
+      manualPrev.style.visibility = manualPage === 0 ? 'hidden' : 'visible';
+    }
+    if (manualNext) {
+      manualNext.style.visibility = manualPage === MANUAL_PAGE_COUNT - 1 ? 'hidden' : 'visible';
+    }
+  }
+
+  function goToManualPage(idx) {
+    if (manualBusy) return;
+    if (idx < 0 || idx >= MANUAL_PAGE_COUNT || idx === manualPage) return;
+    manualBusy = true;
+
+    const direction = idx > manualPage ? 'next' : 'prev';
+    const cur = manualPage + 1;
+    const tgt = idx + 1;
+
+    if (direction === 'next') {
+      // Right page flips around the spine. Front face shows the
+      // current right page; back face reveals the next left page.
+      manualFlipFront.style.backgroundImage    = manualUrl(cur);
+      manualFlipFront.style.backgroundPositionX = '100%'; // right half of cur
+      manualFlipBack.style.backgroundImage     = manualUrl(tgt);
+      manualFlipBack.style.backgroundPositionX  = '0%';   // left half of tgt
+      manualFlip.classList.add('flipping-next');
+    } else {
+      // Left page flips. Front: current.left → Back: prev.right
+      manualFlipFront.style.backgroundImage    = manualUrl(cur);
+      manualFlipFront.style.backgroundPositionX = '0%';
+      manualFlipBack.style.backgroundImage     = manualUrl(tgt);
+      manualFlipBack.style.backgroundPositionX  = '100%';
+      manualFlip.classList.add('flipping-prev');
+    }
+
+    // Mid-flip (overlay perpendicular = invisible): swap the
+    // underlying halves to the new spread without anyone noticing.
+    setTimeout(() => setManualHalves(tgt), MANUAL_FLIP_MS / 2);
+    setTimeout(() => {
+      manualFlip.classList.remove('flipping-next', 'flipping-prev');
+      manualBusy = false;
+    }, MANUAL_FLIP_MS);
+
+    manualPage = idx;
+    paintActiveThumb();
+    updateArrowVisibility();
+  }
+
+  // Initial render
+  setManualHalves(1);
+  updateArrowVisibility();
+
+  if (manualPrev) manualPrev.addEventListener('click', () => goToManualPage(manualPage - 1));
+  if (manualNext) manualNext.addEventListener('click', () => goToManualPage(manualPage + 1));
+
+  // Close button: fade the card out (decorative — refresh to bring back)
+  if (manualClose && manualCard) {
+    manualClose.addEventListener('click', () => manualCard.classList.add('is-closed'));
+  }
+
+  // Arrow-key navigation when the manual section is on screen
+  window.addEventListener('keydown', (e) => {
+    if (!manualSection) return;
+    const r = manualSection.getBoundingClientRect();
+    const onScreen = r.top < window.innerHeight * 0.6 && r.bottom > window.innerHeight * 0.4;
+    if (!onScreen) return;
+    if (e.key === 'ArrowLeft')  goToManualPage(manualPage - 1);
+    if (e.key === 'ArrowRight') goToManualPage(manualPage + 1);
+  });
+
+  buildManualThumbs();
+
+  /* ============================================================
+     Manual section — tap on the LEFT half of the spread to go
+     to the previous page; tap on the RIGHT half for next.
+     Works on desktop too (in addition to the side arrows).
+     ============================================================ */
+  const manualImageWrap = document.querySelector('.manual-image-wrap');
+  if (manualImageWrap) {
+    manualImageWrap.style.cursor = 'pointer';
+    manualImageWrap.addEventListener('click', (e) => {
+      const rect = manualImageWrap.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      if (x < rect.width / 2) {
+        goToManualPage(manualPage - 1);
+      } else {
+        goToManualPage(manualPage + 1);
+      }
+    });
+  }
+
+  /* ============================================================
+     Who section — tap to activate on touch devices (and as a
+     fallback on desktop). Adds .who-active for a few seconds,
+     then auto-dismisses. Same visuals as the desktop hover.
+     ============================================================ */
+  const whoButton = whoSection ? whoSection.querySelector('.who-button') : null;
+  let whoActiveTimer = null;
+  const WHO_ACTIVE_MS = 4000;
+  if (whoButton && whoSection) {
+    whoButton.addEventListener('click', () => {
+      whoSection.classList.add('who-active');
+      // Re-scatter heads on each activation for fresh randomness
+      scatterWhoHeads();
+      clearTimeout(whoActiveTimer);
+      whoActiveTimer = setTimeout(() => {
+        whoSection.classList.remove('who-active');
+      }, WHO_ACTIVE_MS);
+    });
+  }
 
   /* Drag hint removed — kept a no-op so the drag handler
      still has something safe to call. */
@@ -876,6 +2498,212 @@
   document.querySelectorAll('img').forEach((img) => {
     img.addEventListener('dragstart', (e) => e.preventDefault());
   });
+
+  /* ============================================================
+     Pre-Order overlay — open / close behaviour.
+     The same fixed-nav button toggles the overlay; CSS handles
+     the cyan/pink "active" treatment via body.preorder-open.
+     ============================================================ */
+  const preorderBtn = document.getElementById('preorderBtn');
+  function togglePreorder() {
+    const open = document.body.classList.toggle('preorder-open');
+    if (preorderBtn) preorderBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  function closePreorder() {
+    document.body.classList.remove('preorder-open');
+    if (preorderBtn) preorderBtn.setAttribute('aria-expanded', 'false');
+  }
+  if (preorderBtn) preorderBtn.addEventListener('click', togglePreorder);
+  // ESC to close
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('preorder-open')) {
+      closePreorder();
+    }
+  });
+
+  /* ============================================================
+     Quick Answers — panel & per-item expand/collapse.
+     Uses document-level event delegation because the .preorder-faq
+     element lives in HTML AFTER this <script> tag, so it doesn't
+     exist yet when the script first runs. Delegation works because
+     clicks bubble up to <document>, which always exists.
+       - Click the "Quick Answers" header → toggles the whole panel
+         (reveals/hides every answer at once + flips the chevron).
+       - Click an individual question's row → toggles just that
+         one item's answer (the + becomes ×).
+     ============================================================ */
+  document.addEventListener('click', (e) => {
+    const headerBtn = e.target.closest('#preorderFaqToggle');
+    if (headerBtn) {
+      const panel = document.getElementById('preorderFaq');
+      if (!panel) return;
+      const expanded = panel.getAttribute('data-expanded') === 'true';
+      const next = !expanded;
+      panel.setAttribute('data-expanded', next ? 'true' : 'false');
+      headerBtn.setAttribute('aria-expanded', next ? 'true' : 'false');
+      return;
+    }
+    const qBtn = e.target.closest('.preorder-faq-question');
+    if (qBtn) {
+      const item = qBtn.closest('.preorder-faq-item');
+      if (!item) return;
+      const open = item.getAttribute('data-open') === 'true';
+      const next = !open;
+      item.setAttribute('data-open', next ? 'true' : 'false');
+      qBtn.setAttribute('aria-expanded', next ? 'true' : 'false');
+    }
+  });
 </script>
+
+<!-- ===========================================================
+     Pre-Order overlay — full-screen modal triggered by the
+     Pre-Order button. Background gradients fill the viewport;
+     all content lives inside a 1440x1024 scaled stage so every
+     element shares the same global margin as the homepage nav.
+     =========================================================== -->
+<div class="preorder-overlay" id="preorderOverlay" aria-hidden="true" role="dialog">
+
+  <!-- Background gradients (cover viewport BELOW the nav, split 50/50) -->
+  <div class="preorder-bg" aria-hidden="true">
+    <div class="preorder-bg-left"></div>
+    <div class="preorder-bg-right"></div>
+  </div>
+
+  <!-- Scaled content stage (1440x1024 design).
+       NOTE: the per-overlay nav has been removed — the global
+       .fixed-nav (z-index above this overlay) is the single source
+       of truth for navigation, and its Pre-Order button switches
+       to the cyan "active" treatment via body.preorder-open. -->
+  <div class="preorder-stage" id="preorderStage">
+
+    <!-- Two-column main -->
+    <div class="preorder-main">
+      <div class="preorder-col preorder-col-left">
+        <img class="preorder-product" src="product.png" alt="BabyMilu plushie" />
+      </div>
+
+      <div class="preorder-col preorder-col-right">
+        <h1 class="preorder-headline">Join Discord or follow our socials for when Batch 4 opens later this month.</h1>
+
+        <div class="preorder-socials">
+          <a class="preorder-social" href="#" aria-label="Instagram">
+            <img src="Instagram.svg" alt="" />
+          </a>
+          <a class="preorder-social" href="#" aria-label="TikTok">
+            <img src="Tiktok.svg" alt="" />
+          </a>
+          <a class="preorder-social" href="#" aria-label="X / Twitter">
+            <img src="X.svg" alt="" />
+          </a>
+        </div>
+
+        <button class="preorder-discord" type="button">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M19.27 5.33A18.34 18.34 0 0014.89 4l-.2.42a17 17 0 015.4 2.74A14.6 14.6 0 0012 5.18 14.6 14.6 0 003.91 7.16a17 17 0 015.4-2.74L9.11 4a18.34 18.34 0 00-4.38 1.33A19.7 19.7 0 001.5 17a17.69 17.69 0 005.4 2.74l.4-.55a11.65 11.65 0 01-1.83-.9.43.43 0 01-.04-.7 12.4 12.4 0 0013 0c.18.13.16.5-.04.7a11.65 11.65 0 01-1.83.9l.4.55A17.69 17.69 0 0022.5 17a19.7 19.7 0 00-3.23-11.67zM8.52 14.5a1.83 1.83 0 01-1.74-1.92 1.83 1.83 0 011.74-1.92 1.83 1.83 0 011.74 1.92 1.82 1.82 0 01-1.74 1.92zm6.96 0a1.83 1.83 0 01-1.74-1.92 1.83 1.83 0 011.74-1.92 1.83 1.83 0 011.74 1.92 1.82 1.82 0 01-1.74 1.92z" fill="currentColor"/>
+          </svg>
+          <span>Join Discord</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Answers panel — sibling of .preorder-stage so it can be
+       pinned to the viewport's bottom edge directly (instead of
+       depending on the scaled stage's bottom). It's still scaled
+       with --preorder-scale so its visual size matches the rest of
+       the design. -->
+  <div class="preorder-faq" id="preorderFaq" data-expanded="false">
+    <button class="preorder-faq-header" id="preorderFaqToggle" type="button" aria-expanded="false" aria-controls="preorderFaqList">
+      <span class="preorder-faq-label">Quick Answers</span>
+      <span class="preorder-faq-chevron" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+    </button>
+    <div class="preorder-faq-list" id="preorderFaqList">
+      <!-- 1. Always visible (default preview) -->
+      <div class="preorder-faq-item" data-open="false">
+        <button class="preorder-faq-question" type="button" aria-expanded="false">
+          <span class="preorder-faq-q-text">When does Batch 4 open?</span>
+          <span class="preorder-faq-plus" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </span>
+        </button>
+        <div class="preorder-faq-answer">
+          <p>We are planning for the end of this month. The fastest way to hear about the exact opening date is to join our <a href="https://discord.gg/babymilu" target="_blank" rel="noopener">Discord</a> and follow our socials: <a href="https://www.tiktok.com/@lucie_luv_" target="_blank" rel="noopener">TikTok</a> and <a href="https://instagram.com/babymilu_lucie" target="_blank" rel="noopener">IG</a>.</p>
+        </div>
+      </div>
+      <!-- 2. Always visible (default preview) -->
+      <div class="preorder-faq-item" data-open="false">
+        <button class="preorder-faq-question" type="button" aria-expanded="false">
+          <span class="preorder-faq-q-text">Which characters can be in BabyMilu?</span>
+          <span class="preorder-faq-plus" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </span>
+        </button>
+        <div class="preorder-faq-answer">
+          <p>You can customize BabyMilu to be the character you love. You will be able to customize the appearance, voice, and personality in our <a href="https://www.babymilu.com/app" target="_blank" rel="noopener">app</a> before your BabyMilu ships.</p>
+        </div>
+      </div>
+      <!-- 3. Hidden until panel is expanded -->
+      <div class="preorder-faq-item" data-open="false">
+        <button class="preorder-faq-question" type="button" aria-expanded="false">
+          <span class="preorder-faq-q-text">Where do you post updates?</span>
+          <span class="preorder-faq-plus" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </span>
+        </button>
+        <div class="preorder-faq-answer">
+          <p>We share announcements in <a href="https://discord.gg/babymilu" target="_blank" rel="noopener">Discord</a> first, plus updates across our socials when there's a new batch date or product news to share.</p>
+        </div>
+      </div>
+      <!-- 4. Hidden until panel is expanded -->
+      <div class="preorder-faq-item" data-open="false">
+        <button class="preorder-faq-question" type="button" aria-expanded="false">
+          <span class="preorder-faq-q-text">Do you ship internationally?</span>
+          <span class="preorder-faq-plus" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </span>
+        </button>
+        <div class="preorder-faq-answer">
+          <p>US-only for now. We're working on international shipping and will announce when it's available.</p>
+        </div>
+      </div>
+      <!-- 5. Hidden until panel is expanded -->
+      <div class="preorder-faq-item" data-open="false">
+        <button class="preorder-faq-question" type="button" aria-expanded="false">
+          <span class="preorder-faq-q-text">Need help with something else?</span>
+          <span class="preorder-faq-plus" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </span>
+        </button>
+        <div class="preorder-faq-answer">
+          <p>Get help in <a href="https://discord.gg/babymilu" target="_blank" rel="noopener">Discord</a> or email <a href="mailto:lucie@babymilu.com">lucie@babymilu.com</a>.</p>
+        </div>
+      </div>
+      <!-- Entrance to the full FAQ page (visible only when expanded) -->
+      <a class="preorder-faq-all" href="/faq">
+        <span class="preorder-faq-q-text">See all FAQs</span>
+        <span class="preorder-faq-plus" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+      </a>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
