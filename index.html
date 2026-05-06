@@ -870,11 +870,18 @@
       width: 402px;
       height: 874px;
     }
-    /* Mobile: nav scale wrapper switches to the iPhone design width
-       so the fixed nav matches the rest of the mobile layout. */
-    .nav-scale-wrap { width: 402px; }
+    /* Mobile: ditch the scaled centered wrapper — make the nav
+       fill the viewport edge-to-edge with 20px horizontal padding,
+       so it matches the actual screen width on any phone (instead
+       of being a fixed 402px-wide scaled island that leaves margins
+       on wider phones like the Pro Max). */
+    .nav-scale-wrap {
+      width: 100%;
+      left: 0;
+      transform: none;
+    }
     .header {
-      width: 402px;
+      width: 100%;
       padding: 12px 20px;
     }
     .nav-left {
